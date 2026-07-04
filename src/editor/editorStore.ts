@@ -4,7 +4,8 @@ import { buildPolygons } from '../domain/geometry/buildPolygons'
 import { buildPerspectiveRoom } from '../domain/geometry/perspective'
 import { buildWallTemplatePlanes } from '../domain/geometry/wallTemplates'
 import { createDefaultComponentParams, getComponentCatalogItem, getComponentLabel } from '../domain/scene/componentCatalog'
-import type { ComponentPlacementHit, CornerKind, CornerPoint, EditorMode, HistoryEntry, PendingComponentPlacement, PerspectiveAxis, PerspectiveGuideLine, PlaneSpec, Project, RulerPoint, SceneComponent, SceneComponentKind, SourceImage, TransformMode, Vec2, WallTemplateKind } from '../domain/scene/types'
+import { buildComponentPlacement } from '../domain/scene/componentPlacement'
+import type { ComponentPlacementHit, ComponentPlacementMode, CornerKind, CornerPoint, EditorMode, HistoryEntry, PendingComponentPlacement, PerspectiveAxis, PerspectiveGuideLine, PlaneSpec, Project, RulerPoint, SceneComponent, SceneComponentKind, SourceImage, TransformMode, Vec2, WallTemplateKind } from '../domain/scene/types'
 
 type EditorStore = {
   project: Project
@@ -478,28 +479,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set((state) => {
       const catalogItem = getComponentCatalogItem(kind)
       const placementMode = catalogItem?.placement ?? 'free'
-      const hitPlaneCandidate = hit && placementMode !== 'free' ? state.project.planes.find((plane) => plane.id === hit.planeId) : undefined
-      const usableHit = hit && canUseHitForPlacement(placementMode, hit) && (placementMode === 'free' || hitPlaneCandidate) ? hit : null
-      const hitPlane = usableHit && placementMode !== 'free' ? hitPlaneCandidate : undefined
-      const targetPlane = hitPlane ?? (placementMode === 'free'
-        ? undefined
-        : state.selectedId
-          ? state.project.planes.find((plane) => plane.id === state.selectedId && plane.type === placementMode)
-          : undefined)
-      const fallbackPlane = placementMode === 'free'
-        ? undefined
-        : state.project.planes.find((plane) => plane.type === placementMode)
-      const targetPlaneId = placementMode === 'free' ? undefined : targetPlane?.id ?? fallbackPlane?.id
       const size = catalogItem?.defaultSize ?? { x: 0.46, y: 0.28, z: 0.14 }
+      const defaultRotation = catalogItem?.defaultRotation ?? { x: 0, y: 0, z: 0 }
+      const placementResult = buildComponentPlacement(
+        {
+          placement: placementMode,
+          defaultSize: size,
+          defaultRotation,
+        },
+        hit,
+        state.project.planes,
+      )
+      const targetPlaneId = placementResult.canPlace
+        ? placementResult.placement.targetPlaneId
+        : findFallbackTargetPlaneId(state.project, state.selectedId, placementMode)
       const offset = state.project.components.length
-      const hitPosition = usableHit ? { x: usableHit.point.x, y: usableHit.point.y, z: usableHit.point.z } : null
-      const hitPlacement = usableHit
-        ? {
-            targetPlaneId,
-            anchor: usableHit.point,
-            normal: usableHit.normal,
-          }
-        : {}
+      const fallbackPosition = { x: (offset % 5) * 0.42 - 0.84, y: 0.25 + (offset % 2) * 0.18, z: 0.08 }
 
       return {
         project: {
@@ -511,13 +506,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
               kind,
               name: getComponentLabel(kind),
               targetPlaneId,
-              placement: {
-                mode: placementMode,
-                targetPlaneId,
-                ...hitPlacement,
-              },
-              position: hitPosition ?? { x: (offset % 5) * 0.42 - 0.84, y: 0.25 + (offset % 2) * 0.18, z: 0.08 },
-              rotation: catalogItem?.defaultRotation ?? { x: 0, y: 0, z: 0 },
+              placement: placementResult.canPlace ? placementResult.placement : buildFallbackPlacement(placementMode, targetPlaneId),
+              position: placementResult.canPlace ? placementResult.position : fallbackPosition,
+              rotation: placementResult.canPlace ? placementResult.rotation : defaultRotation,
               scale: { x: 1, y: 1, z: 1 },
               size,
               material: { color: catalogItem?.fallbackColor },
@@ -734,9 +725,20 @@ function pickComponentPatch(component: SceneComponent, patch: Partial<SceneCompo
   return from
 }
 
-function canUseHitForPlacement(placementMode: 'wall' | 'floor' | 'free', hit: ComponentPlacementHit) {
-  if (placementMode === 'free') return true
-  if (hit.planeType !== placementMode) return false
-  if (placementMode === 'wall') return hit.surface === undefined || hit.surface === 'front' || hit.surface === 'back'
-  return hit.surface === undefined || hit.surface === 'top'
+function findFallbackTargetPlaneId(project: Project, selectedId: string | null, placementMode: ComponentPlacementMode) {
+  if (placementMode === 'free') return undefined
+
+  const selectedPlane = selectedId ? project.planes.find((plane) => plane.id === selectedId && plane.type === placementMode) : undefined
+  return selectedPlane?.id ?? project.planes.find((plane) => plane.type === placementMode)?.id
+}
+
+function buildFallbackPlacement(mode: ComponentPlacementMode, targetPlaneId?: string) {
+  return targetPlaneId
+    ? {
+        mode,
+        targetPlaneId,
+      }
+    : {
+        mode,
+      }
 }
