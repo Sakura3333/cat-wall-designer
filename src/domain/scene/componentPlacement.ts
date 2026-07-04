@@ -3,23 +3,25 @@ import type { ComponentPlacement, ComponentPlacementHit, ComponentPlacementMode,
 
 export type ComponentPlacementSpec = Pick<ComponentCatalogItem, 'placement' | 'defaultSize' | 'defaultRotation'>
 
+export type ComponentPlacementWarning = 'component-width-exceeds-plane' | 'component-height-exceeds-plane' | 'component-depth-exceeds-plane'
+
 export type ComponentPlacementResult =
   | {
       canPlace: true
       placement: ComponentPlacement
       position: Vec3
       rotation: Vec3
-      warnings: string[]
+      warnings: ComponentPlacementWarning[]
     }
   | {
       canPlace: false
       reason: string
-      warnings: string[]
+      warnings: ComponentPlacementWarning[]
     }
 
-type ClampResult = {
+export type ComponentPlacementClampResult = {
   anchor: Vec3
-  warnings: string[]
+  warnings: ComponentPlacementWarning[]
 }
 
 const FREE_DROP_OFFSET = 0.08
@@ -107,11 +109,11 @@ export function constrainComponentTransform(
   }
 }
 
-function clampAnchorToPlaneBoundsWithWarnings(anchor: Vec3, plane: PlaneSpec, componentSize: Vec3, mode: ComponentPlacementMode): ClampResult {
+export function clampAnchorToPlaneBoundsWithWarnings(anchor: Vec3, plane: PlaneSpec, componentSize: Vec3, mode: ComponentPlacementMode): ComponentPlacementClampResult {
   if (mode === 'free') return { anchor, warnings: [] }
 
   const local = worldToPlaneLocal(anchor, plane)
-  const warnings: string[] = []
+  const warnings: ComponentPlacementWarning[] = []
 
   if (mode === 'wall') {
     const x = clampOnPlaneAxis(local.x, plane.width, componentSize.x, warnings, 'width')
@@ -124,7 +126,7 @@ function clampAnchorToPlaneBoundsWithWarnings(anchor: Vec3, plane: PlaneSpec, co
   return { anchor: roundVec3(planeLocalToWorld({ ...local, x, y }, plane)), warnings }
 }
 
-function clampOnPlaneAxis(value: number, planeExtent: number, componentExtent: number, warnings: string[], axis: string) {
+function clampOnPlaneAxis(value: number, planeExtent: number, componentExtent: number, warnings: ComponentPlacementWarning[], axis: 'width' | 'height' | 'depth') {
   const min = -planeExtent / 2 + componentExtent / 2
   const max = planeExtent / 2 - componentExtent / 2
   if (min > max) {
@@ -227,5 +229,6 @@ function roundVec3(vector: Vec3): Vec3 {
 }
 
 function roundNumber(value: number) {
-  return Number(value.toFixed(6))
+  const rounded = Number(value.toFixed(6))
+  return Object.is(rounded, -0) ? 0 : rounded
 }

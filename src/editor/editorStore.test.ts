@@ -113,6 +113,42 @@ describe('editorStore component placement requests', () => {
     })
   })
 
+  it('clamps wall component drops to the target wall bounds', () => {
+    useEditorStore.getState().addComponent('cat-shelf', {
+      planeId: 'wall-1',
+      planeType: 'wall',
+      point: { x: 2, y: 3, z: 0.02 },
+      normal: { x: 0, y: 0, z: 1 },
+      surface: 'front',
+    })
+
+    const component = useEditorStore.getState().project.components[0]
+    expect(component.position).toEqual({ x: 1.14, y: 2.23, z: 0.11 })
+    expect(component.placement).toMatchObject({
+      mode: 'wall',
+      targetPlaneId: 'wall-1',
+      anchor: { x: 1.14, y: 2.23, z: 0.02 },
+    })
+  })
+
+  it('clamps floor component drops to the target floor footprint', () => {
+    useEditorStore.getState().addComponent('cat-bed', {
+      planeId: 'floor-1',
+      planeType: 'floor',
+      point: { x: 2, y: 0, z: -0.3 },
+      normal: { x: 0, y: 1, z: 0 },
+      surface: 'top',
+    })
+
+    const component = useEditorStore.getState().project.components[0]
+    expect(component.position).toEqual({ x: 1.19, y: 0.12, z: 0.24 })
+    expect(component.placement).toMatchObject({
+      mode: 'floor',
+      targetPlaneId: 'floor-1',
+      anchor: { x: 1.19, y: 0, z: 0.24 },
+    })
+  })
+
   it('keeps unknown free components unbound when dropped on a plane', () => {
     useEditorStore.getState().addComponent('free-prop', {
       planeId: 'wall-1',

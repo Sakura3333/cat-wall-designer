@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildComponentPlacement, canPlaceOnHit, type ComponentPlacementResult, type ComponentPlacementSpec } from './componentPlacement'
+import { buildComponentPlacement, canPlaceOnHit, clampAnchorToPlaneBoundsWithWarnings, type ComponentPlacementResult, type ComponentPlacementSpec } from './componentPlacement'
 import type { ComponentPlacementHit, PlaneSpec } from './types'
 
 const wallPlane: PlaneSpec = {
@@ -24,6 +24,18 @@ const floorPlane: PlaneSpec = {
   uvMode: 'auto',
   position: { x: 0, y: 0, z: 0 },
   rotation: { x: -Math.PI / 2, y: 0, z: 0 },
+}
+
+const sideWallPlane: PlaneSpec = {
+  id: 'wall-side',
+  name: 'Side Wall',
+  type: 'wall',
+  width: 2,
+  height: 2,
+  textureEnabled: false,
+  uvMode: 'auto',
+  position: { x: 1, y: 1, z: 0 },
+  rotation: { x: 0, y: Math.PI / 2, z: 0 },
 }
 
 const wallSpec: ComponentPlacementSpec = {
@@ -156,6 +168,46 @@ describe('buildComponentPlacement', () => {
     expect(result.position).toEqual({ x: 0.8, y: 1.85, z: 0.15 })
   })
 
+  it('clamps anchors so floor components stay inside the plane footprint', () => {
+    const result = placed(
+      buildComponentPlacement(
+        floorSpec,
+        hit({
+          planeId: 'floor-1',
+          planeType: 'floor',
+          point: { x: 1.4, y: 0, z: -1.7 },
+          normal: { x: 0, y: 1, z: 0 },
+          surface: 'top',
+        }),
+        [wallPlane, floorPlane],
+      ),
+    )
+
+    expect(result.placement.anchor).toEqual({ x: 0.8, y: 0, z: -1.25 })
+    expect(result.position).toEqual({ x: 0.8, y: 0.2, z: -1.25 })
+  })
+
+  it('clamps in the target plane local space when the wall is rotated', () => {
+    const result = placed(
+      buildComponentPlacement(
+        wallSpec,
+        hit({
+          planeId: 'wall-side',
+          planeType: 'wall',
+          point: { x: 1.05, y: 2.9, z: -1.2 },
+          normal: { x: 1, y: 0, z: 0 },
+          surface: 'front',
+        }),
+        [sideWallPlane],
+      ),
+    )
+
+    expect(result.placement.anchor).toEqual({ x: 1.05, y: 1.85, z: -0.8 })
+    expect(result.placement.normal).toEqual({ x: 1, y: 0, z: 0 })
+    expect(result.position).toEqual({ x: 1.15, y: 1.85, z: -0.8 })
+    expect(result.rotation).toEqual({ x: 0, y: 1.570796, z: 0 })
+  })
+
   it('warns but still places oversized components at the plane center', () => {
     const result = placed(
       buildComponentPlacement(
@@ -179,6 +231,29 @@ describe('buildComponentPlacement', () => {
     expect(result.warnings).toContain('component-width-exceeds-plane')
   })
 
+  it('reports all oversized floor footprint axes while preserving the plane center', () => {
+    const result = placed(
+      buildComponentPlacement(
+        {
+          ...floorSpec,
+          defaultSize: { x: 2.4, y: 0.4, z: 3.4 },
+        },
+        hit({
+          planeId: 'floor-1',
+          planeType: 'floor',
+          point: { x: 0.6, y: 0, z: 0.8 },
+          normal: { x: 0, y: 1, z: 0 },
+          surface: 'top',
+        }),
+        [floorPlane],
+      ),
+    )
+
+    expect(result.placement.anchor).toEqual({ x: 0, y: 0, z: 0 })
+    expect(result.position).toEqual({ x: 0, y: 0.2, z: 0 })
+    expect(result.warnings).toEqual(['component-width-exceeds-plane', 'component-depth-exceeds-plane'])
+  })
+
   it('rejects missing or incompatible hits', () => {
     expect(buildComponentPlacement(wallSpec, null, [wallPlane])).toMatchObject({
       canPlace: false,
@@ -198,6 +273,15 @@ describe('buildComponentPlacement', () => {
       canPlace: false,
       reason: 'incompatible-surface',
     })
+  })
+})
+
+describe('clampAnchorToPlaneBoundsWithWarnings', () => {
+  it('returns a typed warning result for callers that need to surface boundary state', () => {
+    const result = clampAnchorToPlaneBoundsWithWarnings({ x: 1, y: 1, z: 0 }, wallPlane, { x: 2.4, y: 2.6, z: 0.2 }, 'wall')
+
+    expect(result.anchor).toEqual({ x: 0, y: 1, z: 0 })
+    expect(result.warnings).toEqual(['component-width-exceeds-plane', 'component-height-exceeds-plane'])
   })
 })
 
