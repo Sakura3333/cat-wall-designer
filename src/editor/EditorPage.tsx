@@ -12,12 +12,12 @@ import { ShortcutBar, useShortcutKeys } from '../ui/panels/ShortcutBar'
 import { useEditorStore } from './editorStore'
 
 export function EditorPage() {
-  const addComponent = useEditorStore((state) => state.addComponent)
+  const requestComponentPlacement = useEditorStore((state) => state.requestComponentPlacement)
 
   function handleDragEnd(event: DragEndEvent) {
     if (event.over?.id !== 'scene-drop-zone') return
     const kind = event.active.data.current?.kind as SceneComponentKind | undefined
-    if (kind) addComponent(kind)
+    if (kind) requestComponentPlacement(kind, getDragEndClientPoint(event))
   }
 
   return (
@@ -27,6 +27,16 @@ export function EditorPage() {
       </main>
     </DndContext>
   )
+}
+
+function getDragEndClientPoint(event: DragEndEvent) {
+  const rect = event.active.rect.current.translated ?? event.active.rect.current.initial
+  if (!rect) return null
+
+  return {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+  }
 }
 
 function SceneWorkspace() {

@@ -4,7 +4,7 @@ import { buildPolygons } from '../domain/geometry/buildPolygons'
 import { buildPerspectiveRoom } from '../domain/geometry/perspective'
 import { buildWallTemplatePlanes } from '../domain/geometry/wallTemplates'
 import { createDefaultComponentParams, getComponentCatalogItem, getComponentLabel } from '../domain/scene/componentCatalog'
-import type { CornerKind, CornerPoint, EditorMode, HistoryEntry, PerspectiveAxis, PerspectiveGuideLine, PlaneSpec, Project, RulerPoint, SceneComponent, SceneComponentKind, SourceImage, TransformMode, Vec2, WallTemplateKind } from '../domain/scene/types'
+import type { ComponentPlacementHit, CornerKind, CornerPoint, EditorMode, HistoryEntry, PendingComponentPlacement, PerspectiveAxis, PerspectiveGuideLine, PlaneSpec, Project, RulerPoint, SceneComponent, SceneComponentKind, SourceImage, TransformMode, Vec2, WallTemplateKind } from '../domain/scene/types'
 
 type EditorStore = {
   project: Project
@@ -16,6 +16,7 @@ type EditorStore = {
   history: HistoryEntry[]
   future: HistoryEntry[]
   geometryErrors: string[]
+  pendingComponentPlacement: PendingComponentPlacement | null
   setSourceImage: (sourceImage: SourceImage) => void
   clearSourceImage: () => void
   setMode: (mode: EditorMode) => void
@@ -46,7 +47,9 @@ type EditorStore = {
   selectSceneObject: (id: string | null) => void
   deleteSelectedSceneObject: () => void
   setActiveCategory: (category: string) => void
-  addComponent: (kind: SceneComponentKind) => void
+  requestComponentPlacement: (kind: SceneComponentKind, clientPoint: Vec2 | null) => void
+  consumeComponentPlacement: (id: string) => void
+  addComponent: (kind: SceneComponentKind, hit?: ComponentPlacementHit | null) => void
 }
 
 const initialProject: Project = {
@@ -76,6 +79,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   history: [],
   future: [],
   geometryErrors: [],
+  pendingComponentPlacement: null,
   activePerspectiveAxis: 'left',
   setSourceImage: (sourceImage) =>
     set((state) => ({
@@ -84,6 +88,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       selectedId: null,
       transformMode: 'select',
       geometryErrors: [],
+      pendingComponentPlacement: null,
       history: [],
       future: [],
     })),
@@ -94,6 +99,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       selectedId: null,
       transformMode: 'select',
       geometryErrors: [],
+      pendingComponentPlacement: null,
       history: [],
       future: [],
     })),
@@ -458,21 +464,42 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }),
   selectPlane: (id) => set({ selectedId: id }),
   setActiveCategory: (category) => set({ activeCategory: category }),
-  addComponent: (kind) =>
+  requestComponentPlacement: (kind, clientPoint) =>
+    set({
+      pendingComponentPlacement: {
+        id: `placement-${Date.now()}`,
+        kind,
+        clientPoint,
+      },
+    }),
+  consumeComponentPlacement: (id) =>
+    set((state) => (state.pendingComponentPlacement?.id === id ? { pendingComponentPlacement: null } : state)),
+  addComponent: (kind, hit = null) =>
     set((state) => {
       const catalogItem = getComponentCatalogItem(kind)
       const placementMode = catalogItem?.placement ?? 'free'
-      const targetPlane = placementMode === 'free'
+      const hitPlaneCandidate = hit && placementMode !== 'free' ? state.project.planes.find((plane) => plane.id === hit.planeId) : undefined
+      const usableHit = hit && canUseHitForPlacement(placementMode, hit) && (placementMode === 'free' || hitPlaneCandidate) ? hit : null
+      const hitPlane = usableHit && placementMode !== 'free' ? hitPlaneCandidate : undefined
+      const targetPlane = hitPlane ?? (placementMode === 'free'
         ? undefined
         : state.selectedId
           ? state.project.planes.find((plane) => plane.id === state.selectedId && plane.type === placementMode)
-          : undefined
+          : undefined)
       const fallbackPlane = placementMode === 'free'
         ? undefined
         : state.project.planes.find((plane) => plane.type === placementMode)
-      const targetPlaneId = targetPlane?.id ?? fallbackPlane?.id
+      const targetPlaneId = placementMode === 'free' ? undefined : targetPlane?.id ?? fallbackPlane?.id
       const size = catalogItem?.defaultSize ?? { x: 0.46, y: 0.28, z: 0.14 }
       const offset = state.project.components.length
+      const hitPosition = usableHit ? { x: usableHit.point.x, y: usableHit.point.y, z: usableHit.point.z } : null
+      const hitPlacement = usableHit
+        ? {
+            targetPlaneId,
+            anchor: usableHit.point,
+            normal: usableHit.normal,
+          }
+        : {}
 
       return {
         project: {
@@ -487,8 +514,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
               placement: {
                 mode: placementMode,
                 targetPlaneId,
+                ...hitPlacement,
               },
-              position: { x: (offset % 5) * 0.42 - 0.84, y: 0.25 + (offset % 2) * 0.18, z: 0.08 },
+              position: hitPosition ?? { x: (offset % 5) * 0.42 - 0.84, y: 0.25 + (offset % 2) * 0.18, z: 0.08 },
               rotation: catalogItem?.defaultRotation ?? { x: 0, y: 0, z: 0 },
               scale: { x: 1, y: 1, z: 1 },
               size,
@@ -704,4 +732,11 @@ function pickComponentPatch(component: SceneComponent, patch: Partial<SceneCompo
   if ('material' in patch) from.material = component.material
   if ('params' in patch) from.params = component.params
   return from
+}
+
+function canUseHitForPlacement(placementMode: 'wall' | 'floor' | 'free', hit: ComponentPlacementHit) {
+  if (placementMode === 'free') return true
+  if (hit.planeType !== placementMode) return false
+  if (placementMode === 'wall') return hit.surface === undefined || hit.surface === 'front' || hit.surface === 'back'
+  return hit.surface === undefined || hit.surface === 'top'
 }

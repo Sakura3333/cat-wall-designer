@@ -1,10 +1,10 @@
 import { Edges, OrbitControls, TransformControls } from '@react-three/drei'
-import { Canvas, useLoader } from '@react-three/fiber'
-import { forwardRef, Suspense, useEffect, useMemo, useState } from 'react'
-import { BufferGeometry, CanvasTexture, Float32BufferAttribute, Mesh, MOUSE, TextureLoader } from 'three'
+import { Canvas, useLoader, useThree } from '@react-three/fiber'
+import { forwardRef, Suspense, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { BufferGeometry, Camera, CanvasTexture, Float32BufferAttribute, Group, Mesh, MOUSE, Object3D, Quaternion, Raycaster, TextureLoader, Vector2, Vector3 } from 'three'
 import { useEditorStore } from '../../editor/editorStore'
 import { getComponentCatalogItem } from '../../domain/scene/componentCatalog'
-import type { PlaneSpec, PolygonSpec, SceneComponent, Vec2 } from '../../domain/scene/types'
+import type { ComponentPlacementHit, ComponentPlacementSurface, PlaneSpec, PlaneType, PolygonSpec, SceneComponent, Vec2 } from '../../domain/scene/types'
 
 export function SceneCanvas() {
   const project = useEditorStore((state) => state.project)
@@ -18,6 +18,7 @@ export function SceneCanvas() {
   const selectedPlane = project.planes.find((plane) => plane.id === selectedId) ?? null
   const selectedComponent = project.components.find((component) => component.id === selectedId) ?? null
   const [selectedObject, setSelectedObject] = useState<Mesh | null>(null)
+  const sceneGroupRef = useRef<Group>(null)
   const camera = project.sceneCamera
   const cameraConfig = camera
     ? {
@@ -57,7 +58,7 @@ export function SceneCanvas() {
       <ambientLight intensity={1.4} />
       <directionalLight position={[2, 4, 5]} intensity={1.1} />
       <Suspense fallback={null}>
-        <group position={camera ? [0, 0, 0] : [0, -1, 0]}>
+        <group ref={sceneGroupRef} position={camera ? [0, 0, 0] : [0, -1, 0]}>
           {project.planes.map((plane) => {
             const polygon = plane.polygonId ? polygonsById.get(plane.polygonId) : undefined
             return (
@@ -81,6 +82,7 @@ export function SceneCanvas() {
             />
           ))}
         </group>
+        <PlacementResolver sceneGroupRef={sceneGroupRef} />
         {selectedObject && (selectedPlane || selectedComponent) && (
           <TransformControls
             object={selectedObject}
@@ -118,6 +120,7 @@ const PlaneMesh = forwardRef<Mesh, PlaneMeshProps>(function PlaneMesh({ plane, p
   return (
     <mesh
       ref={ref}
+      userData={{ kind: 'plane', planeId: plane.id, planeType: plane.type }}
       position={[plane.position.x, plane.position.y, plane.position.z]}
       rotation={[plane.rotation.x, plane.rotation.y, plane.rotation.z]}
       onClick={(event) => {
@@ -137,6 +140,93 @@ const PlaneMesh = forwardRef<Mesh, PlaneMeshProps>(function PlaneMesh({ plane, p
     </mesh>
   )
 })
+
+type PlacementResolverProps = {
+  sceneGroupRef: RefObject<Group | null>
+}
+
+function PlacementResolver({ sceneGroupRef }: PlacementResolverProps) {
+  const pendingPlacement = useEditorStore((state) => state.pendingComponentPlacement)
+  const addComponent = useEditorStore((state) => state.addComponent)
+  const consumeComponentPlacement = useEditorStore((state) => state.consumeComponentPlacement)
+  const { camera, gl, raycaster, scene } = useThree()
+
+  useEffect(() => {
+    if (!pendingPlacement) return
+
+    const hit = pendingPlacement.clientPoint
+      ? resolveScenePlacementHit(pendingPlacement.clientPoint, camera, gl.domElement, scene, raycaster, sceneGroupRef.current)
+      : null
+    addComponent(pendingPlacement.kind, hit)
+    consumeComponentPlacement(pendingPlacement.id)
+  }, [addComponent, camera, consumeComponentPlacement, gl.domElement, pendingPlacement, raycaster, scene, sceneGroupRef])
+
+  return null
+}
+
+type PlaneUserData = {
+  kind?: 'plane'
+  planeId?: string
+  planeType?: PlaneType
+}
+
+function resolveScenePlacementHit(clientPoint: Vec2, camera: Camera, canvas: HTMLCanvasElement, scene: Object3D, raycaster: Raycaster, sceneGroup: Group | null): ComponentPlacementHit | null {
+  const rect = canvas.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+
+  const ndc = new Vector2(((clientPoint.x - rect.left) / rect.width) * 2 - 1, -((clientPoint.y - rect.top) / rect.height) * 2 + 1)
+  const planeObjects: Object3D[] = []
+  scene.traverse((object) => {
+    const userData = object.userData as PlaneUserData
+    if (userData.kind === 'plane') planeObjects.push(object)
+  })
+
+  if (!planeObjects.length) return null
+
+  raycaster.setFromCamera(ndc, camera)
+  const intersections = raycaster.intersectObjects(planeObjects, false)
+  for (const intersection of intersections) {
+    const userData = intersection.object.userData as PlaneUserData
+    if (!userData.planeId || !userData.planeType) continue
+
+    const point = intersection.point.clone()
+    const localPoint = sceneGroup ? sceneGroup.worldToLocal(point.clone()) : point
+    const localFaceNormal = intersection.face?.normal.clone() ?? new Vector3(0, 0, 1)
+    const normal = toSceneLocalNormal(localFaceNormal, intersection.object, sceneGroup)
+
+    return {
+      planeId: userData.planeId,
+      planeType: userData.planeType,
+      point: toVec3(localPoint),
+      normal: toVec3(normal),
+      surface: classifyPlaneSurface(userData.planeType, localFaceNormal),
+    }
+  }
+
+  return null
+}
+
+function toSceneLocalNormal(localFaceNormal: Vector3, object: Object3D, sceneGroup: Group | null) {
+  const worldNormal = localFaceNormal.clone().transformDirection(object.matrixWorld)
+  if (!sceneGroup) return worldNormal.normalize()
+
+  const groupWorldQuaternion = sceneGroup.getWorldQuaternion(new Quaternion()).invert()
+  return worldNormal.applyQuaternion(groupWorldQuaternion).normalize()
+}
+
+function classifyPlaneSurface(planeType: PlaneType, localFaceNormal: Vector3): ComponentPlacementSurface {
+  if (planeType === 'floor' && localFaceNormal.z > 0.65) return 'top'
+  if (Math.abs(localFaceNormal.z) > 0.65) return localFaceNormal.z > 0 ? 'front' : 'back'
+  return 'side'
+}
+
+function toVec3(vector: Vector3) {
+  return {
+    x: Number(vector.x.toFixed(4)),
+    y: Number(vector.y.toFixed(4)),
+    z: Number(vector.z.toFixed(4)),
+  }
+}
 
 function buildThickPlaneGeometry(width: number, height: number, depth: number, uv?: Vec2[]) {
   const halfWidth = width / 2

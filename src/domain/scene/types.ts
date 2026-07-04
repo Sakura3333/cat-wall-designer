@@ -89,6 +89,22 @@ export type ComponentPlacement = {
   normal?: Vec3
 }
 
+export type ComponentPlacementSurface = 'front' | 'back' | 'top' | 'side'
+
+export type ComponentPlacementHit = {
+  planeId: string
+  planeType: PlaneType
+  point: Vec3
+  normal: Vec3
+  surface?: ComponentPlacementSurface
+}
+
+export type PendingComponentPlacement = {
+  id: string
+  kind: SceneComponentKind
+  clientPoint: Vec2 | null
+}
+
 export type ComponentMaterial = {
   color?: string
   textureUrl?: string
