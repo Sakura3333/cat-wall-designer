@@ -1,0 +1,283 @@
+import { Edges, OrbitControls, TransformControls } from '@react-three/drei'
+import { Canvas, useLoader } from '@react-three/fiber'
+import { forwardRef, Suspense, useEffect, useMemo, useState } from 'react'
+import { BufferGeometry, CanvasTexture, Float32BufferAttribute, Mesh, MOUSE, TextureLoader } from 'three'
+import { useEditorStore } from '../../editor/editorStore'
+import { getComponentCatalogItem } from '../../domain/scene/componentCatalog'
+import type { PlaneSpec, PolygonSpec, SceneComponent, Vec2 } from '../../domain/scene/types'
+
+export function SceneCanvas() {
+  const project = useEditorStore((state) => state.project)
+  const selectedId = useEditorStore((state) => state.selectedId)
+  const transformMode = useEditorStore((state) => state.transformMode)
+  const selectSceneObject = useEditorStore((state) => state.selectSceneObject)
+  const setTransformMode = useEditorStore((state) => state.setTransformMode)
+  const updatePlaneTransform = useEditorStore((state) => state.updatePlaneTransform)
+  const updateComponentTransform = useEditorStore((state) => state.updateComponentTransform)
+  const polygonsById = useMemo(() => new Map(project.polygons.map((polygon) => [polygon.id, polygon])), [project.polygons])
+  const selectedPlane = project.planes.find((plane) => plane.id === selectedId) ?? null
+  const selectedComponent = project.components.find((component) => component.id === selectedId) ?? null
+  const [selectedObject, setSelectedObject] = useState<Mesh | null>(null)
+  const camera = project.sceneCamera
+  const cameraConfig = camera
+    ? {
+        fov: camera.fov,
+        position: [camera.position.x, camera.position.y, camera.position.z] as [number, number, number],
+        rotation: [camera.rotation.x, camera.rotation.y, camera.rotation.z] as [number, number, number],
+        near: 0.1,
+        far: 100,
+      }
+    : {
+        fov: 40,
+        position: [0, 2.25, 8.6] as [number, number, number],
+        near: 0.1,
+        far: 100,
+      }
+
+  useEffect(() => {
+    if (!selectedId) setSelectedObject(null)
+  }, [selectedId])
+
+  function commitSelectedTransform() {
+    if (!selectedObject) return
+    const patch = {
+      position: { x: selectedObject.position.x, y: selectedObject.position.y, z: selectedObject.position.z },
+      rotation: { x: selectedObject.rotation.x, y: selectedObject.rotation.y, z: selectedObject.rotation.z },
+    }
+
+    if (selectedPlane) {
+      updatePlaneTransform(selectedPlane.id, patch)
+    } else if (selectedComponent) {
+      updateComponentTransform(selectedComponent.id, patch)
+    }
+  }
+
+  return (
+    <Canvas className="scene-canvas" camera={cameraConfig}>
+      <ambientLight intensity={1.4} />
+      <directionalLight position={[2, 4, 5]} intensity={1.1} />
+      <Suspense fallback={null}>
+        <group position={camera ? [0, 0, 0] : [0, -1, 0]}>
+          {project.planes.map((plane) => {
+            const polygon = plane.polygonId ? polygonsById.get(plane.polygonId) : undefined
+            return (
+              <PlaneMesh
+                key={plane.id}
+                plane={plane}
+                polygon={polygon}
+                selected={selectedId === plane.id}
+                ref={selectedId === plane.id ? setSelectedObject : undefined}
+                onSelect={() => selectSceneObject(plane.id)}
+              />
+            )
+          })}
+          {project.components.map((component) => (
+            <ComponentMesh
+              key={component.id}
+              component={component}
+              selected={selectedId === component.id}
+              ref={selectedId === component.id ? setSelectedObject : undefined}
+              onSelect={() => selectSceneObject(component.id)}
+            />
+          ))}
+        </group>
+        {selectedObject && (selectedPlane || selectedComponent) && (
+          <TransformControls
+            object={selectedObject}
+            mode={transformMode === 'rotate' ? 'rotate' : 'translate'}
+            enabled={transformMode !== 'select'}
+            onMouseUp={() => {
+              commitSelectedTransform()
+              setTransformMode('select')
+            }}
+          />
+        )}
+      </Suspense>
+      <OrbitControls
+        enabled={transformMode === 'select'}
+        enablePan
+        mouseButtons={{ LEFT: MOUSE.ROTATE, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN }}
+        maxPolarAngle={Math.PI / 2.1}
+        minDistance={2.6}
+        maxDistance={14}
+      />
+    </Canvas>
+  )
+}
+
+type PlaneMeshProps = {
+  plane: PlaneSpec
+  polygon?: PolygonSpec
+  selected: boolean
+  onSelect: () => void
+}
+
+const PlaneMesh = forwardRef<Mesh, PlaneMeshProps>(function PlaneMesh({ plane, polygon, selected, onSelect }, ref) {
+  const geometry = useMemo(() => buildThickPlaneGeometry(plane.width, plane.height, plane.type === 'floor' ? 0.08 : 0.1, polygon?.uv), [plane.width, plane.height, plane.type, polygon?.uv])
+
+  return (
+    <mesh
+      ref={ref}
+      position={[plane.position.x, plane.position.y, plane.position.z]}
+      rotation={[plane.rotation.x, plane.rotation.y, plane.rotation.z]}
+      onClick={(event) => {
+        event.stopPropagation()
+        onSelect()
+      }}
+    >
+      <primitive attach="geometry" object={geometry} />
+      {plane.textureUrl && plane.textureEnabled ? (
+        <TextureMaterial url={plane.textureUrl} floor={plane.type === 'floor'} />
+      ) : plane.type === 'wall' ? (
+        <WarmWallMaterial />
+      ) : (
+        <meshStandardMaterial color="#d9c3a2" roughness={0.9} />
+      )}
+      <Edges color={selected ? '#d96d5f' : '#332d26'} linewidth={selected ? 3 : 2} />
+    </mesh>
+  )
+})
+
+function buildThickPlaneGeometry(width: number, height: number, depth: number, uv?: Vec2[]) {
+  const halfWidth = width / 2
+  const halfHeight = height / 2
+  const halfDepth = depth / 2
+  const geometry = new BufferGeometry()
+  const frontUv = uv?.length === 4 ? uv : defaultUv
+  const backUv: Vec2[] = [
+    { x: 1, y: 1 },
+    { x: 0, y: 1 },
+    { x: 0, y: 0 },
+    { x: 1, y: 0 },
+  ]
+  const sideUv = defaultUv
+
+  geometry.setAttribute(
+    'position',
+    new Float32BufferAttribute(
+      [
+        -halfWidth, halfHeight, halfDepth,
+        halfWidth, halfHeight, halfDepth,
+        halfWidth, -halfHeight, halfDepth,
+        -halfWidth, -halfHeight, halfDepth,
+        halfWidth, halfHeight, -halfDepth,
+        -halfWidth, halfHeight, -halfDepth,
+        -halfWidth, -halfHeight, -halfDepth,
+        halfWidth, -halfHeight, -halfDepth,
+        -halfWidth, halfHeight, -halfDepth,
+        -halfWidth, halfHeight, halfDepth,
+        -halfWidth, -halfHeight, halfDepth,
+        -halfWidth, -halfHeight, -halfDepth,
+        halfWidth, halfHeight, halfDepth,
+        halfWidth, halfHeight, -halfDepth,
+        halfWidth, -halfHeight, -halfDepth,
+        halfWidth, -halfHeight, halfDepth,
+        -halfWidth, halfHeight, -halfDepth,
+        halfWidth, halfHeight, -halfDepth,
+        halfWidth, halfHeight, halfDepth,
+        -halfWidth, halfHeight, halfDepth,
+        -halfWidth, -halfHeight, halfDepth,
+        halfWidth, -halfHeight, halfDepth,
+        halfWidth, -halfHeight, -halfDepth,
+        -halfWidth, -halfHeight, -halfDepth,
+      ],
+      3,
+    ),
+  )
+  geometry.setAttribute(
+    'uv',
+    new Float32BufferAttribute([...frontUv, ...backUv, ...sideUv, ...sideUv, ...sideUv, ...sideUv].flatMap((point) => [point.x, point.y]), 2),
+  )
+  geometry.setIndex([
+    0, 3, 1, 1, 3, 2,
+    4, 7, 5, 5, 7, 6,
+    8, 11, 9, 9, 11, 10,
+    12, 15, 13, 13, 15, 14,
+    16, 19, 17, 17, 19, 18,
+    20, 23, 21, 21, 23, 22,
+  ])
+  geometry.computeVertexNormals()
+  return geometry
+}
+
+const defaultUv: Vec2[] = [
+  { x: 0, y: 1 },
+  { x: 1, y: 1 },
+  { x: 1, y: 0 },
+  { x: 0, y: 0 },
+]
+
+function TextureMaterial({ url, floor }: { url: string; floor: boolean }) {
+  const texture = useLoader(TextureLoader, url)
+  texture.colorSpace = 'srgb'
+  return <meshStandardMaterial map={texture} color={floor ? '#d6bea0' : '#fff3df'} roughness={0.88} transparent opacity={0.88} />
+}
+
+function WarmWallMaterial() {
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas')
+    canvas.width = 256
+    canvas.height = 256
+    const context = canvas.getContext('2d')
+    if (context) {
+      context.fillStyle = '#efd5b0'
+      context.fillRect(0, 0, canvas.width, canvas.height)
+
+      for (let y = 0; y < canvas.height; y += 18) {
+        context.strokeStyle = y % 36 === 0 ? 'rgba(132, 95, 58, 0.10)' : 'rgba(255, 255, 255, 0.18)'
+        context.lineWidth = 1
+        context.beginPath()
+        context.moveTo(0, y + Math.sin(y) * 2)
+        context.quadraticCurveTo(86, y + 5, 172, y - 2)
+        context.quadraticCurveTo(216, y - 4, 256, y + 3)
+        context.stroke()
+      }
+
+      for (let i = 0; i < 460; i += 1) {
+        const x = Math.random() * canvas.width
+        const y = Math.random() * canvas.height
+        const radius = Math.random() * 1.8 + 0.4
+        context.fillStyle = i % 3 === 0 ? 'rgba(116, 82, 49, 0.12)' : 'rgba(255, 246, 229, 0.22)'
+        context.beginPath()
+        context.arc(x, y, radius, 0, Math.PI * 2)
+        context.fill()
+      }
+    }
+
+    const wallTexture = new CanvasTexture(canvas)
+    wallTexture.colorSpace = 'srgb'
+    return wallTexture
+  }, [])
+
+  return <meshStandardMaterial map={texture} color="#f1c995" roughness={0.96} />
+}
+
+type ComponentMeshProps = {
+  component: SceneComponent
+  selected: boolean
+  onSelect: () => void
+}
+
+const ComponentMesh = forwardRef<Mesh, ComponentMeshProps>(function ComponentMesh({ component, selected, onSelect }, ref) {
+  const catalogItem = getComponentCatalogItem(component.kind)
+  const size = component.size ?? catalogItem?.defaultSize ?? { x: 0.46, y: component.kind === 'curtain' ? 0.86 : 0.28, z: 0.14 }
+  const scale = component.scale ?? { x: 1, y: 1, z: 1 }
+  const color = component.material?.color ?? catalogItem?.fallbackColor ?? '#dbe7df'
+
+  return (
+    <mesh
+      ref={ref}
+      position={[component.position.x, component.position.y, component.position.z]}
+      rotation={[component.rotation.x, component.rotation.y, component.rotation.z]}
+      scale={[scale.x, scale.y, scale.z]}
+      onClick={(event) => {
+        event.stopPropagation()
+        onSelect()
+      }}
+    >
+      <boxGeometry args={[size.x, size.y, size.z]} />
+      <meshStandardMaterial color={color} roughness={0.75} />
+      <Edges color={selected ? '#d96d5f' : '#332d26'} linewidth={selected ? 3 : 1.6} />
+    </mesh>
+  )
+})

@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" role="img" aria-labelledby="title desc">
+  <title id="title">猫墙 DIY 施工参考图</title>
+  <desc id="desc">一面 2400mm 宽、1700mm 高的暖色可爱猫墙施工参考图，包含平台、猫屋、吊床、抓板、剑麻柱、绳桥和安装点。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5b4638"/>
+    </marker>
+    <pattern id="wood" patternUnits="userSpaceOnUse" width="80" height="16">
+      <rect width="80" height="16" fill="#f4c986"/>
+      <path d="M0 8 C20 2 35 14 55 7 C65 4 73 6 80 9" fill="none" stroke="#cf9a57" stroke-width="1.2" opacity=".55"/>
+    </pattern>
+    <pattern id="sisal" patternUnits="userSpaceOnUse" width="10" height="10" patternTransform="rotate(35)">
+      <rect width="10" height="10" fill="#d2a066"/>
+      <path d="M0 5 H10" stroke="#9d7145" stroke-width="2" opacity=".55"/>
+    </pattern>
+    <style>
+      .bg { fill: #fff8ef; }
+      .wall { fill: #fffdf9; stroke: #7f6652; stroke-width: 3; }
+      .rail { fill: #d0a16b; stroke: #76583f; stroke-width: 2; }
+      .wood { fill: url(#wood); stroke: #76583f; stroke-width: 2; }
+      .soft { fill: #ffd8cf; stroke: #9a6b5d; stroke-width: 2; }
+      .line { stroke: #5b4638; stroke-width: 1.8; fill: none; marker-start: url(#arrow); marker-end: url(#arrow); }
+      .guide { stroke: #b8a28d; stroke-width: 1.2; stroke-dasharray: 6 6; fill: none; }
+      .anchor { fill: #fff; stroke: #d06f58; stroke-width: 2.5; }
+      .anchor-fill { fill: #d06f58; }
+      .label { font-family: "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif; fill: #3f3028; font-size: 22px; font-weight: 700; }
+      .small { font-family: "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif; fill: #514238; font-size: 17px; }
+      .tiny { font-family: "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif; fill: #5d4c40; font-size: 14px; }
+      .dim { font-family: "Microsoft YaHei", "Noto Sans SC", Arial, sans-serif; fill: #5b4638; font-size: 18px; font-weight: 700; }
+      .callout { fill: #fff5e4; stroke: #d7a66e; stroke-width: 2; rx: 10; }
+      .note { fill: #fffdf7; stroke: #d6b28b; stroke-width: 2; rx: 12; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1600" height="1100"/>
+  <text x="70" y="62" class="label" style="font-size:34px;">猫墙 DIY 施工参考图</text>
+  <text x="72" y="94" class="small">建议墙面尺寸：2400mm 宽 × 1700mm 高；图中尺寸为可调整参考，实际安装请按墙体承重校核。</text>
+
+  <rect x="160" y="130" width="1080" height="765" class="wall"/>
+  <path d="M160 250 H1240 M160 370 H1240 M160 490 H1240 M160 610 H1240 M160 730 H1240 M340 130 V895 M520 130 V895 M700 130 V895 M880 130 V895 M1060 130 V895" class="guide"/>
+
+  <rect x="185" y="152" width="1030" height="18" class="rail"/>
+  <text x="195" y="146" class="tiny">上部隐藏法式挂条 / 承重横梁，建议贯通固定</text>
+  <rect x="185" y="850" width="1030" height="16" class="rail" opacity=".75"/>
+  <text x="195" y="890" class="tiny">底部辅助横梁，防止平台受力后外翻</text>
+
+  <rect x="241" y="670" width="171" height="108" class="wood" rx="6"/>
+  <text x="254" y="704" class="tiny">A 下层跳台</text>
+  <text x="254" y="728" class="tiny">380×240×18</text>
+  <circle cx="265" cy="690" r="8" class="anchor"/>
+  <circle cx="386" cy="690" r="8" class="anchor"/>
+  <circle cx="265" cy="758" r="8" class="anchor"/>
+  <circle cx="386" cy="758" r="8" class="anchor"/>
+
+  <rect x="412" y="562" width="144" height="99" class="wood" rx="6"/>
+  <text x="424" y="597" class="tiny">B 中层跳台</text>
+  <text x="424" y="621" class="tiny">320×220×18</text>
+  <circle cx="435" cy="583" r="7" class="anchor"/>
+  <circle cx="536" cy="583" r="7" class="anchor"/>
+  <circle cx="435" cy="641" r="7" class="anchor"/>
+  <circle cx="536" cy="641" r="7" class="anchor"/>
+
+  <rect x="209.5" y="382" width="135" height="279" class="soft" rx="8"/>
+  <path d="M230 408 H324 M230 438 H324 M230 468 H324 M230 498 H324 M230 528 H324 M230 558 H324 M230 588 H324 M230 618 H324" stroke="#b67d65" stroke-width="4" stroke-linecap="round"/>
+  <text x="222" y="358" class="tiny">C 可换抓板</text>
+  <text x="222" y="379" class="tiny">300×620</text>
+  <circle cx="230" cy="405" r="7" class="anchor"/>
+  <circle cx="324" cy="405" r="7" class="anchor"/>
+  <circle cx="230" cy="638" r="7" class="anchor"/>
+  <circle cx="324" cy="638" r="7" class="anchor"/>
+
+  <rect x="547" y="427" width="54" height="279" fill="url(#sisal)" stroke="#76583f" stroke-width="2" rx="20"/>
+  <circle cx="574" cy="427" r="27" class="wood"/>
+  <circle cx="574" cy="706" r="27" class="wood"/>
+  <text x="610" y="468" class="tiny">D 剑麻柱</text>
+  <text x="610" y="489" class="tiny">直径120，高620</text>
+  <text x="610" y="510" class="tiny">上下法兰盘固定</text>
+
+  <path d="M556 455 Q700 395 844 455 L812 552 Q700 602 588 552 Z" fill="#ffe0d7" stroke="#8a6556" stroke-width="2"/>
+  <path d="M592 465 Q700 425 808 465" fill="none" stroke="#c88c79" stroke-width="4" stroke-dasharray="8 8"/>
+  <text x="606" y="395" class="tiny">E 帆布吊床</text>
+  <text x="606" y="417" class="tiny">640×260，四角吊环</text>
+  <circle cx="575" cy="461" r="7" class="anchor"/>
+  <circle cx="825" cy="461" r="7" class="anchor"/>
+  <circle cx="595" cy="545" r="7" class="anchor"/>
+  <circle cx="805" cy="545" r="7" class="anchor"/>
+
+  <rect x="853" y="481" width="234" height="180" class="wood" rx="10"/>
+  <rect x="885" y="514" width="170" height="116" fill="#fff9ef" stroke="#8a6556" stroke-width="2" rx="52"/>
+  <circle cx="942" cy="572" r="33" fill="#ffe0d7" stroke="#8a6556" stroke-width="2"/>
+  <circle cx="1010" cy="572" r="18" fill="#ffe0d7" stroke="#8a6556" stroke-width="2"/>
+  <text x="873" y="454" class="tiny">F 猫屋箱体</text>
+  <text x="873" y="476" class="tiny">520×400×360</text>
+  <circle cx="875" cy="504" r="7" class="anchor"/>
+  <circle cx="1065" cy="504" r="7" class="anchor"/>
+  <circle cx="875" cy="638" r="7" class="anchor"/>
+  <circle cx="1065" cy="638" r="7" class="anchor"/>
+
+  <rect x="866.5" y="256" width="189" height="108" class="wood" rx="6"/>
+  <rect x="890" y="270" width="143" height="64" class="soft" rx="14"/>
+  <text x="877" y="235" class="tiny">G 上层软垫台</text>
+  <text x="877" y="255" class="tiny">420×240</text>
+  <circle cx="890" cy="278" r="7" class="anchor"/>
+  <circle cx="1032" cy="278" r="7" class="anchor"/>
+  <circle cx="890" cy="342" r="7" class="anchor"/>
+  <circle cx="1032" cy="342" r="7" class="anchor"/>
+
+  <rect x="263.5" y="206.5" width="225" height="117" class="wood" rx="58"/>
+  <ellipse cx="376" cy="265" rx="92" ry="42" class="soft"/>
+  <text x="280" y="184" class="tiny">H 高位猫窝</text>
+  <text x="280" y="204" class="tiny">500×260，软包围边</text>
+  <circle cx="292" cy="228" r="7" class="anchor"/>
+  <circle cx="461" cy="228" r="7" class="anchor"/>
+  <circle cx="292" cy="302" r="7" class="anchor"/>
+  <circle cx="461" cy="302" r="7" class="anchor"/>
+
+  <path d="M452.5 295 C540 265 715 265 812.5 295 L800 337 C705 318 560 318 465 337 Z" fill="#f0c081" stroke="#76583f" stroke-width="2"/>
+  <path d="M471 303 L791 303 M486 321 L776 321" stroke="#8a603d" stroke-width="3"/>
+  <path d="M486 289 V346 M530 281 V350 M574 277 V353 M618 276 V354 M662 276 V354 M706 278 V353 M750 284 V350" stroke="#8a603d" stroke-width="2"/>
+  <text x="535" y="258" class="tiny">I 绳桥 / 软桥</text>
+  <text x="535" y="279" class="tiny">800×160，侧边安全绳</text>
+
+  <line x1="160" y1="945" x2="1240" y2="945" class="line"/>
+  <line x1="160" y1="910" x2="160" y2="970" stroke="#5b4638" stroke-width="1.4"/>
+  <line x1="1240" y1="910" x2="1240" y2="970" stroke="#5b4638" stroke-width="1.4"/>
+  <text x="642" y="980" class="dim">2400mm</text>
+
+  <line x1="1288" y1="130" x2="1288" y2="895" class="line"/>
+  <line x1="1258" y1="130" x2="1318" y2="130" stroke="#5b4638" stroke-width="1.4"/>
+  <line x1="1258" y1="895" x2="1318" y2="895" stroke="#5b4638" stroke-width="1.4"/>
+  <text x="1308" y="520" class="dim" transform="rotate(90 1308 520)">1700mm</text>
+
+  <rect x="1325" y="132" width="220" height="256" class="note"/>
+  <text x="1344" y="165" class="label" style="font-size:22px;">安装建议</text>
+  <text x="1344" y="203" class="tiny">1. 横梁优先打入承重墙</text>
+  <text x="1344" y="228" class="tiny">2. 每个平台至少 4 点固定</text>
+  <text x="1344" y="253" class="tiny">3. 外挑平台加三角托</text>
+  <text x="1344" y="278" class="tiny">4. 高位件加防脱保险绳</text>
+  <text x="1344" y="303" class="tiny">5. 边角全部倒圆打磨</text>
+  <text x="1344" y="328" class="tiny">6. 预留猫跳跃间距 300-450</text>
+  <text x="1344" y="353" class="tiny">7. 先试装，再贴软包</text>
+
+  <rect x="1325" y="420" width="220" height="360" class="note"/>
+  <text x="1344" y="454" class="label" style="font-size:22px;">主材清单</text>
+  <text x="1344" y="492" class="tiny">板材：18mm 多层板</text>
+  <text x="1344" y="517" class="tiny">横梁：松木方 / 型材</text>
+  <text x="1344" y="542" class="tiny">固定：膨胀螺丝或锚栓</text>
+  <text x="1344" y="567" class="tiny">连接：L 码、三角托</text>
+  <text x="1344" y="592" class="tiny">抓挠：8-10mm 剑麻绳</text>
+  <text x="1344" y="617" class="tiny">软包：帆布、绒布、海绵</text>
+  <text x="1344" y="642" class="tiny">防护：包边、防滑垫</text>
+  <text x="1344" y="667" class="tiny">维护：魔术贴、替换抓面</text>
+  <text x="1344" y="692" class="tiny">装饰：木蜡油、贴皮</text>
+  <text x="1344" y="717" class="tiny">工具：冲击钻、水平仪</text>
+
+  <rect x="1325" y="812" width="220" height="83" class="note"/>
+  <circle cx="1350" cy="844" r="8" class="anchor"/>
+  <text x="1368" y="850" class="tiny">红圈 = 墙面固定点</text>
+  <rect x="1341" y="866" width="20" height="12" class="rail"/>
+  <text x="1368" y="878" class="tiny">棕条 = 承重横梁</text>
+
+  <rect x="70" y="1010" width="1460" height="52" class="callout"/>
+  <text x="92" y="1043" class="small">安全提示：猫墙属于承重家具，石膏板、空心砖墙需加背板或找到龙骨；成年猫建议按单点 15kg 以上冗余设计，所有高位件做防脱。</text>
+</svg>

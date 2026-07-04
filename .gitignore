@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.vite/
+
+vite-dev.log
+*.log
+
+.env
+.env.*
+!.env.example
+
+*.blend1
+
+.DS_Store
+Thumbs.db

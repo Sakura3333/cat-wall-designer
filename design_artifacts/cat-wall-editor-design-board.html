@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>在线猫墙编辑器 - 流程草图与UI效果图</title>
+  <style>
+    :root{
+      --bg:#f5efe3;
+      --paper:#fff9ef;
+      --paper-2:#f9f0df;
+      --ink:#2f2a24;
+      --muted:#6f6558;
+      --line:#3a332c;
+      --accent:#d96d5f;
+      --accent-2:#648c7a;
+      --accent-3:#8a6bb5;
+      --shadow:0 16px 42px rgba(54,39,22,.12);
+      --radius:18px;
+      --radius-sm:12px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;height:100%;background:
+      radial-gradient(circle at 12% 12%, rgba(255,255,255,.7), transparent 18%),
+      radial-gradient(circle at 88% 10%, rgba(255,231,215,.55), transparent 15%),
+      linear-gradient(180deg, #f7f2e7 0%, #f1eadc 100%);
+      color:var(--ink);
+      font-family: "Comic Sans MS","Chalkboard SE","Marker Felt","Segoe Print",system-ui,sans-serif;
+    }
+    .board{
+      width:min(1600px, 100%);
+      margin:0 auto;
+      padding:24px;
+    }
+    .title{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:16px;
+      margin-bottom:16px;
+    }
+    .title h1{
+      margin:0;
+      font-size:34px;
+      letter-spacing:.5px;
+      text-shadow:1px 1px 0 rgba(255,255,255,.45);
+    }
+    .title p{
+      margin:0;
+      max-width:700px;
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.5;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 0.92fr 1.08fr;
+      gap:20px;
+      align-items:start;
+    }
+    .panel{
+      position:relative;
+      background:rgba(255,250,241,.88);
+      border:2px solid rgba(58,51,44,.84);
+      border-radius:28px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .panel::before{
+      content:"";
+      position:absolute;
+      inset:10px;
+      border:1px dashed rgba(58,51,44,.18);
+      border-radius:22px;
+      pointer-events:none;
+    }
+    .panel-head{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      padding:18px 22px 12px;
+      border-bottom:2px solid rgba(58,51,44,.14);
+    }
+    .panel-head h2{
+      margin:0;
+      font-size:20px;
+    }
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border:2px solid rgba(58,51,44,.72);
+      border-radius:999px;
+      background:#fffdf8;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .flow{
+      padding:18px 22px 22px;
+    }
+    .step{
+      position:relative;
+      margin:0 0 18px;
+      padding:16px 16px 16px 58px;
+      background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(251,245,234,.96));
+      border:2px solid rgba(58,51,44,.72);
+      border-radius:22px;
+      box-shadow:6px 6px 0 rgba(58,51,44,.06);
+    }
+    .step:last-child{margin-bottom:0}
+    .step .num{
+      position:absolute;
+      left:14px;
+      top:14px;
+      width:28px;
+      height:28px;
+      border-radius:50%;
+      border:2px solid rgba(58,51,44,.9);
+      display:grid;
+      place-items:center;
+      font-size:13px;
+      background:#fff7ea;
+      font-weight:700;
+    }
+    .step h3{
+      margin:0 0 8px;
+      font-size:18px;
+    }
+    .step p{
+      margin:0;
+      color:var(--muted);
+      line-height:1.55;
+      font-size:14px;
+    }
+    .mini-flow{
+      display:grid;
+      gap:12px;
+      margin-top:14px;
+    }
+    .mini-row{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .mini-box{
+      padding:10px 12px;
+      border:2px solid rgba(58,51,44,.7);
+      border-radius:16px;
+      background:#fffdf7;
+      font-size:13px;
+      box-shadow:4px 4px 0 rgba(58,51,44,.05);
+    }
+    .arrow{
+      font-size:22px;
+      color:var(--accent);
+      transform:translateY(-1px);
+    }
+    .sketch{
+      padding:18px 18px 22px;
+    }
+    .sketch-grid{
+      display:grid;
+      grid-template-columns:1.1fr .9fr;
+      gap:16px;
+    }
+    .sketch-card{
+      min-height:220px;
+      padding:14px;
+      background:rgba(255,255,255,.85);
+      border:2px solid rgba(58,51,44,.68);
+      border-radius:22px;
+      box-shadow:5px 5px 0 rgba(58,51,44,.05);
+      position:relative;
+      overflow:hidden;
+    }
+    .sketch-card h4{
+      margin:0 0 10px;
+      font-size:16px;
+    }
+    .cat{
+      position:absolute;
+      right:10px;
+      top:10px;
+      width:58px;
+      height:42px;
+      border:2px solid rgba(58,51,44,.72);
+      border-radius:50% 50% 44% 44%;
+      background:linear-gradient(180deg, #f7ddbb, #dcb38a);
+      box-shadow:4px 4px 0 rgba(58,51,44,.05);
+    }
+    .cat:before,.cat:after{
+      content:"";
+      position:absolute;
+      top:-10px;
+      width:12px;
+      height:14px;
+      border:2px solid rgba(58,51,44,.72);
+      border-bottom:none;
+      background:#f0c89d;
+      transform:rotate(12deg);
+      border-radius:4px 4px 0 0;
+    }
+    .cat:before{left:8px}
+    .cat:after{right:8px; transform:rotate(-12deg)}
+    .sketch-scene{
+      position:absolute;
+      inset:54px 14px 14px 14px;
+      border:2px solid rgba(58,51,44,.72);
+      border-radius:18px;
+      background:
+        linear-gradient(145deg, rgba(255,255,255,.92), rgba(241,231,214,.96));
+    }
+    .wall{
+      position:absolute;
+      border:2px solid rgba(58,51,44,.74);
+      background:rgba(255,250,245,.55);
+      box-shadow:5px 5px 0 rgba(58,51,44,.06);
+    }
+    .wall.a{left:18px;top:24px;width:42%;height:44%;transform:skewY(-6deg);background:rgba(242,227,206,.65)}
+    .wall.b{left:43%;top:18px;width:48%;height:56%;transform:skewY(8deg);background:rgba(238,226,214,.78)}
+    .wall.c{left:26%;bottom:18px;width:44%;height:34%;background:rgba(235,241,238,.9)}
+    .cut-dot{
+      position:absolute;
+      width:10px;height:10px;border-radius:50%;
+      background:var(--accent);
+      border:2px solid rgba(58,51,44,.85);
+    }
+    .cut-dot.one{left:18px;top:20px}
+    .cut-dot.two{right:14px;top:24px;background:var(--accent-2)}
+    .cut-dot.three{right:18px;bottom:20px;background:var(--accent-3)}
+    .note{
+      margin-top:12px;
+      font-size:13px;
+      color:var(--muted);
+      line-height:1.5;
+    }
+    .ui-wrap{
+      padding:18px;
+      background:
+        radial-gradient(circle at 22% 18%, rgba(255,255,255,.35), transparent 18%),
+        linear-gradient(180deg, #e9dfcf 0%, #dccab2 100%);
+      min-height:1020px;
+    }
+    .app-shell{
+      position:relative;
+      min-height:980px;
+      border:2px solid rgba(58,51,44,.8);
+      border-radius:32px;
+      overflow:hidden;
+      background:
+        linear-gradient(180deg, rgba(245,238,227,.82), rgba(231,220,202,.76)),
+        linear-gradient(135deg, rgba(255,255,255,.5), rgba(255,255,255,.15));
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.35), 0 20px 60px rgba(53,38,20,.18);
+    }
+    .app-shell:before{
+      content:"";
+      position:absolute;
+      inset:22px;
+      border:1px dashed rgba(58,51,44,.18);
+      border-radius:24px;
+      pointer-events:none;
+    }
+    .app-top{
+      padding:22px 24px 10px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:16px;
+    }
+    .app-top .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      font-size:22px;
+      font-weight:700;
+    }
+    .badge{
+      padding:8px 12px;
+      border:2px solid rgba(58,51,44,.8);
+      border-radius:999px;
+      background:#fff9ee;
+      font-size:12px;
+    }
+    .hero{
+      position:relative;
+      margin:0 22px;
+      height:560px;
+      border:3px solid rgba(47,42,36,.9);
+      border-radius:28px;
+      overflow:hidden;
+      background:
+        linear-gradient(rgba(62,54,44,.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(62,54,44,.055) 1px, transparent 1px),
+        linear-gradient(rgba(62,54,44,.035) 2px, transparent 2px),
+        linear-gradient(90deg, rgba(62,54,44,.035) 2px, transparent 2px),
+        radial-gradient(circle at 18% 12%, rgba(255,255,255,.92), transparent 22%),
+        linear-gradient(180deg, #fff9eb 0%, #f3ead8 100%);
+      background-size:22px 22px,22px 22px,110px 110px,110px 110px,100% 100%,100% 100%;
+      box-shadow:6px 6px 0 rgba(58,51,44,.12), inset 0 0 0 6px rgba(255,255,255,.36);
+    }
+    .scene-floor{
+      position:absolute;
+      left:0;right:0;bottom:0;height:42%;
+      background:
+        repeating-linear-gradient(90deg, rgba(47,42,36,.08) 0 2px, transparent 2px 18px),
+        linear-gradient(180deg, rgba(244,228,199,.46), rgba(218,189,148,.5));
+      clip-path:polygon(0 20%, 100% 0, 100% 100%, 0 100%);
+      border-top:3px solid rgba(47,42,36,.72);
+      display:none;
+    }
+    .plane{
+      position:absolute;
+      border:4px solid rgba(47,42,36,.92);
+      background:rgba(255,248,237,.5);
+      box-shadow:10px 10px 0 rgba(47,42,36,.13), inset 0 0 0 2px rgba(255,255,255,.55);
+      display:none;
+    }
+    .plane.left{left:8%;top:16%;width:28%;height:56%;transform:skewY(-13deg);background:rgba(255,244,222,.78)}
+    .plane.center{left:35%;top:12%;width:30%;height:64%;transform:skewY(9deg);background:rgba(255,250,235,.82)}
+    .plane.right{left:63%;top:18%;width:26%;height:50%;transform:skewY(-10deg);background:rgba(246,236,218,.8)}
+    .floor-plane{
+      position:absolute;
+      left:22%;bottom:12%;
+      width:54%;height:18%;
+      background:
+        repeating-linear-gradient(90deg, rgba(47,42,36,.08) 0 2px, transparent 2px 22px),
+        rgba(226,199,161,.82);
+      border:4px solid rgba(47,42,36,.9);
+      transform:perspective(700px) rotateX(64deg);
+      transform-origin:center bottom;
+      border-radius:12px;
+      box-shadow:10px 10px 0 rgba(47,42,36,.12);
+      display:none;
+    }
+    .texture{
+      position:absolute;
+      inset:0;
+      background:
+        radial-gradient(circle at 10% 20%, rgba(47,42,36,.035) 0 1px, transparent 1.8px),
+        radial-gradient(circle at 70% 40%, rgba(47,42,36,.03) 0 1px, transparent 1.8px),
+        linear-gradient(90deg, rgba(255,255,255,.28), transparent 18%, rgba(47,42,36,.025) 62%, transparent);
+      background-size:18px 18px,24px 24px,100% 100%;
+      opacity:.7;
+      mix-blend-mode:multiply;
+      pointer-events:none;
+    }
+    .wire{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      display:none;
+    }
+    .wire path,.wire line{
+      stroke:rgba(47,42,36,.9);
+      stroke-width:3.5;
+      fill:none;
+      stroke-linecap:round;
+      stroke-linejoin:round;
+    }
+    .pin{
+      position:absolute;
+      width:12px;height:12px;border-radius:50%;
+      background:#fff7e8;
+      border:2px solid rgba(58,51,44,.88);
+      box-shadow:0 0 0 4px rgba(217,109,95,.15);
+      display:none;
+    }
+    .pin.a{left:16%;top:18%}
+    .pin.b{left:30%;top:16%}
+    .pin.c{left:44%;top:14%}
+    .pin.d{left:61%;top:18%}
+    .pin.e{left:76%;top:22%}
+    .floating{
+      position:absolute;
+      background:rgba(255,250,242,.96);
+      border:2px solid rgba(58,51,44,.85);
+      border-radius:20px;
+      box-shadow:8px 8px 0 rgba(58,51,44,.07);
+      backdrop-filter: blur(6px);
+    }
+    .floating.left{
+      left:18px;top:110px;width:134px;height:390px;
+      padding:14px 12px;
+    }
+    .floating.right{
+      right:18px;top:110px;width:248px;
+      bottom:166px;
+      max-height:418px;
+      padding:14px 14px 12px;
+      overflow-y:auto;
+      scrollbar-width:thin;
+      scrollbar-color:rgba(58,51,44,.38) transparent;
+    }
+    .floating.bottom{
+      left:50%;bottom:18px;transform:translateX(-50%);
+      width:min(720px, calc(100% - 160px));height:132px;
+      padding:12px;
+    }
+    .float-title{
+      display:flex;align-items:center;justify-content:space-between;
+      margin-bottom:10px;
+      font-size:12px;
+      color:var(--muted);
+      text-transform:uppercase;
+      letter-spacing:.08em;
+    }
+    .tool-col{
+      display:grid;
+      gap:10px;
+    }
+    .tool{
+      display:flex;align-items:center;gap:10px;
+      padding:10px;
+      border:2px solid rgba(58,51,44,.65);
+      border-radius:14px;
+      background:#fffdf8;
+      font-size:13px;
+    }
+    .ico{
+      width:28px;height:28px;border-radius:9px;
+      background:linear-gradient(180deg, #f9dfbe, #f0c994);
+      border:2px solid rgba(58,51,44,.74);
+      flex:0 0 auto;
+    }
+    .ico.pen{clip-path:polygon(20% 80%, 74% 26%, 84% 36%, 30% 90%, 18% 92%);}
+    .ico.dot{border-radius:50%;background:linear-gradient(180deg, #d9eef0, #a8cad2);}
+    .ico.grid{background:
+      linear-gradient(90deg, transparent 0 35%, rgba(58,51,44,.45) 35% 37%, transparent 37% 63%, rgba(58,51,44,.45) 63% 65%, transparent 65%),
+      linear-gradient(transparent 0 35%, rgba(58,51,44,.45) 35% 37%, transparent 37% 63%, rgba(58,51,44,.45) 63% 65%, transparent 65%);
+    }
+    .prop-group{
+      margin-bottom:14px;
+      padding-bottom:12px;
+      border-bottom:1px dashed rgba(58,51,44,.18);
+    }
+    .prop-group:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+    .prop-group h3{
+      margin:0 0 10px;
+      font-size:14px;
+    }
+    .prop-row{
+      display:grid;
+      grid-template-columns:74px 1fr 42px;
+      gap:8px;
+      align-items:center;
+      margin-bottom:8px;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .bar{
+      height:10px;
+      border-radius:999px;
+      background:#efe5d6;
+      border:1.8px solid rgba(58,51,44,.72);
+      position:relative;
+      overflow:hidden;
+    }
+    .bar:after{
+      content:"";
+      position:absolute;left:0;top:0;bottom:0;
+      width:var(--w,50%);
+      background:linear-gradient(90deg, #f3c59f, #d96d5f);
+    }
+    .tabs{
+      display:flex;
+      gap:8px;
+      overflow:hidden;
+      margin-bottom:10px;
+    }
+    .tab{
+      padding:8px 12px;
+      border:2px solid rgba(58,51,44,.72);
+      border-radius:999px;
+      background:#fffdf8;
+      font-size:12px;
+      white-space:nowrap;
+    }
+    .tab.active{
+      background:#dfb594;
+    }
+    .component-row{
+      display:flex;
+      gap:10px;
+      overflow:hidden;
+      padding-top:4px;
+    }
+    .component{
+      min-width:120px;
+      height:78px;
+      border:3px solid rgba(47,42,36,.86);
+      border-radius:18px;
+      background:#fffdf8;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:12px;
+      text-align:center;
+      padding:8px;
+      box-shadow:6px 6px 0 rgba(47,42,36,.11), inset 0 0 0 2px rgba(255,255,255,.58);
+    }
+    .component:nth-child(1){background:linear-gradient(180deg,#fff9ef,#f6e9d4)}
+    .component:nth-child(2){background:linear-gradient(180deg,#fff9ef,#e7f0ea)}
+    .component:nth-child(3){background:linear-gradient(180deg,#fff9ef,#e9e2f2)}
+    .legend{
+      display:flex;
+      gap:12px;
+      flex-wrap:wrap;
+      padding:16px 22px 20px;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .legend span{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .swatch{
+      width:14px;height:14px;border-radius:4px;border:1.6px solid rgba(58,51,44,.75)
+    }
+    @media (max-width: 1280px){
+      .grid{grid-template-columns:1fr}
+      .ui-wrap{min-height:auto}
+    }
+  </style>
+</head>
+<body>
+  <div class="board">
+    <div class="title">
+      <div>
+        <h1>在线猫墙编辑器</h1>
+        <p>流程草图先把“上传室内图 → 标角点 → 生成四边形 → 拆分成墙面 plane → 可选地面 plane → 贴图投射到 3D 模型”理顺。右侧是按你描述做的手绘风 UI 效果图。</p>
+      </div>
+      <div class="tag">手绘感 / 3D 为主体 / 左工具栏 / 右属性面板 / 底部组件栏</div>
+    </div>
+
+    <div class="grid">
+      <section class="panel">
+        <div class="panel-head">
+          <h2>流程拆解与草图</h2>
+          <div class="tag">从用户视角到系统几何</div>
+        </div>
+        <div class="flow">
+          <div class="step">
+            <div class="num">1</div>
+            <h3>上传房间照片</h3>
+            <p>用户上传一张室内图后，直接进入角点标记。系统不预判是单面墙、双面墙还是三面墙，而是根据用户标出的角点与生成的四边形数量，去决定墙面 plane 的数量。</p>
+          </div>
+          <div class="step">
+            <div class="num">2</div>
+            <h3>手动标记角点</h3>
+            <p>用户在照片上点出墙体转折点、地面边界点、墙角点。系统要给出吸附、撤销、重置、放大辅助，减少角点误差。</p>
+          </div>
+          <div class="step">
+            <div class="num">3</div>
+            <h3>角点生成四边形并拆分 plane</h3>
+            <p>系统根据点位生成一个或多个四边形，再把每个四边形转成对应的墙面 plane。每个 plane 是独立对象，有自己的长宽和贴图区域。</p>
+          </div>
+          <div class="step">
+            <div class="num">4</div>
+            <h3>可选添加地面 plane</h3>
+            <p>用户勾选“添加地面”后，再生成一个 floor plane。这个步骤要像开关一样明确，避免用户误以为地面是默认必有的。</p>
+          </div>
+          <div class="step">
+            <div class="num">5</div>
+            <h3>设置 plane 尺寸与贴图</h3>
+            <p>每个 plane 都能调长宽，贴图按标记的四边形区域映射到 3D 模型上。最终输出的是一个可继续编辑的场景，而不是静态渲染图。</p>
+          </div>
+
+          <div class="mini-flow">
+            <div class="mini-row">
+              <div class="mini-box">上传室内图</div>
+              <div class="arrow">→</div>
+              <div class="mini-box">标记角点</div>
+              <div class="arrow">→</div>
+              <div class="mini-box">生成四边形</div>
+              <div class="arrow">→</div>
+              <div class="mini-box">拆分 plane</div>
+            </div>
+            <div class="mini-row">
+              <div class="mini-box">墙面 plane × 四边形数量</div>
+              <div class="arrow">→</div>
+              <div class="mini-box">可选地面 plane</div>
+              <div class="arrow">→</div>
+              <div class="mini-box">调尺寸</div>
+              <div class="arrow">→</div>
+              <div class="mini-box">贴图投射</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-head">
+          <h2>流程草图</h2>
+          <div class="tag">猫墙编辑器的几何路径</div>
+        </div>
+        <div class="sketch">
+          <div class="sketch-grid">
+            <div class="sketch-card">
+              <h4>墙面与地面拆分示意</h4>
+              <div class="cat"></div>
+              <div class="sketch-scene">
+                <div class="wall a"></div>
+                <div class="wall b"></div>
+                <div class="wall c"></div>
+                <div class="cut-dot one"></div>
+                <div class="cut-dot two"></div>
+                <div class="cut-dot three"></div>
+              </div>
+            </div>
+            <div class="sketch-card">
+              <h4>交互步骤</h4>
+              <div class="mini-flow" style="margin-top:0">
+                <div class="mini-box">1. 上传照片</div>
+                <div class="arrow" style="text-align:center">↓</div>
+                <div class="mini-box">2. 点角点</div>
+                <div class="arrow" style="text-align:center">↓</div>
+                <div class="mini-box">3. 生成 plane</div>
+                <div class="arrow" style="text-align:center">↓</div>
+                <div class="mini-box">4. 地面开关</div>
+                <div class="arrow" style="text-align:center">↓</div>
+                <div class="mini-box">5. 贴图预览</div>
+              </div>
+            </div>
+          </div>
+          <div class="note">草图里我把“按四边形生成墙面 plane”和“可选地面 plane”分开表达了。这样后面做交互时，用户不会把墙面数量和地面开关混成一件事。</div>
+        </div>
+      </section>
+
+      <section class="panel" style="grid-column:1 / -1">
+        <div class="panel-head">
+          <h2>UI 效果图</h2>
+          <div class="tag">手绘风 / 3D 预览区主体</div>
+        </div>
+        <div class="ui-wrap">
+          <div class="app-shell">
+            <div class="app-top">
+              <div class="brand">猫墙编辑器 <span class="badge">室内图转 3D plane</span></div>
+              <div class="badge">上传后先标角点，再生成模型</div>
+            </div>
+
+            <div class="hero">
+              <div class="scene-floor"></div>
+              <div class="plane left"></div>
+              <div class="plane center"></div>
+              <div class="plane right"></div>
+              <div class="floor-plane"></div>
+              <div class="texture"></div>
+              <div class="pin a"></div>
+              <div class="pin b"></div>
+              <div class="pin c"></div>
+              <div class="pin d"></div>
+              <div class="pin e"></div>
+              <svg class="wire" viewBox="0 0 1000 560" preserveAspectRatio="none" aria-hidden="true">
+                <path d="M150 100 L310 90 L430 120 L610 100 L790 140" />
+                <path d="M150 100 L130 300 L260 420" />
+                <path d="M430 120 L420 320 L550 430" />
+                <path d="M610 100 L620 280 L760 380" />
+                <line x1="120" y1="300" x2="260" y2="420" />
+                <line x1="420" y1="320" x2="550" y2="430" />
+              </svg>
+
+              <aside class="floating left">
+                <div class="float-title"><span>3D 编辑</span><span>tools</span></div>
+                <div class="tool-col">
+                  <div class="tool"><div class="ico pen"></div>角点标记</div>
+                  <div class="tool"><div class="ico grid"></div>四边形拆分</div>
+                  <div class="tool"><div class="ico dot"></div>吸附校准</div>
+                  <div class="tool"><div class="ico pen"></div>撤销 / 重做</div>
+                  <div class="tool"><div class="ico grid"></div>重置视角</div>
+                </div>
+              </aside>
+
+              <aside class="floating right">
+                <div class="float-title"><span>属性面板</span><span>plane</span></div>
+                <div class="prop-group">
+                  <h3>当前墙面 plane</h3>
+                  <div class="prop-row"><span>长</span><div class="bar" style="--w:72%"></div><span>3.6m</span></div>
+                  <div class="prop-row"><span>宽</span><div class="bar" style="--w:58%"></div><span>2.4m</span></div>
+                  <div class="prop-row"><span>贴图</span><div class="bar" style="--w:86%"></div><span>已映射</span></div>
+                </div>
+                <div class="prop-group">
+                  <h3>地面 plane</h3>
+                  <div class="prop-row"><span>启用</span><div class="bar" style="--w:52%"></div><span>勾选</span></div>
+                  <div class="prop-row"><span>长</span><div class="bar" style="--w:64%"></div><span>4.2m</span></div>
+                  <div class="prop-row"><span>宽</span><div class="bar" style="--w:42%"></div><span>2.1m</span></div>
+                </div>
+              </aside>
+
+              <div class="floating bottom">
+                <div class="float-title"><span>组件面板</span><span>drag & drop</span></div>
+                <div class="tabs">
+                  <div class="tab active">墙面</div>
+                  <div class="tab">地面</div>
+                  <div class="tab">窗口</div>
+                  <div class="tab">灯具</div>
+                  <div class="tab">装饰</div>
+                </div>
+                <div class="component-row">
+                  <div class="component">猫爬架<br/>可拖入场景</div>
+                  <div class="component">挂画<br/>贴墙组件</div>
+                  <div class="component">猫窝<br/>地面组件</div>
+                  <div class="component">窗帘<br/>墙面遮挡</div>
+                  <div class="component">食盆<br/>地面组件</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="legend">
+              <span><i class="swatch" style="background:#d96d5f"></i>角点</span>
+              <span><i class="swatch" style="background:#648c7a"></i>可选地面</span>
+              <span><i class="swatch" style="background:#8a6bb5"></i>组件分类</span>
+              <span><i class="swatch" style="background:#f0c994"></i>手绘卡片感</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+</body>
+</html>
