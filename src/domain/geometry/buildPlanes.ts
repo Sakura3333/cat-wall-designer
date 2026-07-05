@@ -1,5 +1,7 @@
 import type { PlaneSpec, PolygonSpec, SourceImage } from '../scene/types'
 
+const WALL_THICKNESS = 0.1
+
 export function buildPlanes(polygons: PolygonSpec[], sourceImage: SourceImage | null, showFloor: boolean, previousPlanes: PlaneSpec[] = []): PlaneSpec[] {
   const orderedPolygons = [...polygons].sort((a, b) => a.center.x - b.center.x)
   const planeSizes = orderedPolygons.map((polygon) => {
@@ -64,9 +66,10 @@ export function buildPlanes(polygons: PolygonSpec[], sourceImage: SourceImage | 
 function buildWallLayout(sizes: Array<{ width: number; height: number }>) {
   if (sizes.length === 3) {
     const centerWidth = sizes[1].width
+    const cornerX = centerWidth / 2 + WALL_THICKNESS / 2
     return [
       {
-        position: { x: -centerWidth / 2, y: 1.3, z: sizes[0].width / 2 },
+        position: { x: -cornerX, y: 1.3, z: sizes[0].width / 2 + WALL_THICKNESS / 2 },
         rotation: { x: 0, y: Math.PI / 2, z: 0 },
       },
       {
@@ -74,7 +77,7 @@ function buildWallLayout(sizes: Array<{ width: number; height: number }>) {
         rotation: { x: 0, y: 0, z: 0 },
       },
       {
-        position: { x: centerWidth / 2, y: 1.3, z: sizes[2].width / 2 },
+        position: { x: cornerX, y: 1.3, z: sizes[2].width / 2 + WALL_THICKNESS / 2 },
         rotation: { x: 0, y: -Math.PI / 2, z: 0 },
       },
     ]

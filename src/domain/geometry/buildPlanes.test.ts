@@ -17,11 +17,13 @@ describe('buildPlanes', () => {
     const [leftWall, centerWall, rightWall] = planes
 
     expect(leftWall.id).toBe('wall-1')
-    expect(leftWall.position.x).toBeLessThan(0)
+    expect(leftWall.position.x).toBeCloseTo(-1.85)
+    expect(leftWall.position.z).toBeCloseTo(1.85)
     expect(leftWall.rotation.y).toBeCloseTo(Math.PI / 2)
     expect(centerWall.position.x).toBe(0)
     expect(centerWall.rotation.y).toBe(0)
-    expect(rightWall.position.x).toBeGreaterThan(0)
+    expect(rightWall.position.x).toBeCloseTo(1.85)
+    expect(rightWall.position.z).toBeCloseTo(1.85)
     expect(rightWall.rotation.y).toBeCloseTo(-Math.PI / 2)
   })
 })

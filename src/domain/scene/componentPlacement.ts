@@ -32,6 +32,7 @@ type TransformAttachment = {
 }
 
 const FREE_DROP_OFFSET = 0.08
+const SURFACE_LOCAL_TOLERANCE = 0.08
 
 export function canPlaceOnHit(mode: ComponentPlacementMode, hit: ComponentPlacementHit): boolean {
   if (mode === 'free') return true
@@ -121,6 +122,68 @@ export function constrainComponentTransform(
       targetPlaneId: attachment.plane.id,
       anchor: attachment.anchor,
       normal: attachment.normal,
+    },
+  }
+}
+
+export function transformBoundComponentWithPlane(
+  component: SceneComponent,
+  previousPlane: PlaneSpec,
+  nextPlane: PlaneSpec,
+  spec?: Partial<ComponentPlacementSpec>,
+): SceneComponent {
+  const mode = component.placement?.mode
+  if (!mode || mode === 'free' || component.placement?.targetPlaneId !== previousPlane.id || previousPlane.type !== mode || nextPlane.type !== mode) {
+    return component
+  }
+
+  const size = component.size ?? spec?.defaultSize ?? { x: 0.46, y: 0.28, z: 0.14 }
+  const offset = mode === 'wall' ? size.z / 2 : size.y / 2
+  const previousNormal = planeSurfaceNormal(previousPlane)
+  const previousAnchor = component.placement.anchor ?? subtract(component.position, scale(previousNormal, offset))
+  const localAnchor = worldToPlaneLocal(previousAnchor, previousPlane)
+  const nextAnchor = roundVec3(planeLocalToWorld(localAnchor, nextPlane))
+  const nextNormal = planeSurfaceNormal(nextPlane)
+  const localRotation = subtract(component.rotation, previousPlane.rotation)
+  const nextRotation = mode === 'wall' ? roundVec3(add(nextPlane.rotation, localRotation)) : component.rotation
+
+  return {
+    ...component,
+    targetPlaneId: nextPlane.id,
+    position: roundVec3(add(nextAnchor, scale(nextNormal, offset))),
+    rotation: nextRotation,
+    placement: {
+      ...component.placement,
+      mode,
+      targetPlaneId: nextPlane.id,
+      anchor: nextAnchor,
+      normal: nextNormal,
+    },
+  }
+}
+
+export function projectBoundComponentOntoPlane(component: SceneComponent, plane: PlaneSpec, spec?: Partial<ComponentPlacementSpec>): SceneComponent {
+  const mode = component.placement?.mode
+  if (!mode || mode === 'free' || component.placement?.targetPlaneId !== plane.id || plane.type !== mode) return component
+
+  const size = component.size ?? spec?.defaultSize ?? { x: 0.46, y: 0.28, z: 0.14 }
+  const normal = planeSurfaceNormal(plane)
+  const offset = mode === 'wall' ? size.z / 2 : size.y / 2
+  const inferredAnchor = subtract(component.position, scale(normal, offset))
+  const local = worldToPlaneLocal(inferredAnchor, plane)
+  const surfaceLocalZ = Math.abs(local.z) <= SURFACE_LOCAL_TOLERANCE ? local.z : 0
+  const anchor = clampAnchorToPlaneBounds(planeLocalToWorld({ ...local, z: surfaceLocalZ }, plane), plane, size, mode)
+
+  return {
+    ...component,
+    targetPlaneId: plane.id,
+    position: roundVec3(add(anchor, scale(normal, offset))),
+    placement: {
+      ...component.placement,
+      mode,
+      targetPlaneId: plane.id,
+      anchor,
+      normal,
     },
   }
 }

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { buildComponentPlacement, canPlaceOnHit, clampAnchorToPlaneBoundsWithWarnings, constrainComponentTransform, type ComponentPlacementResult, type ComponentPlacementSpec } from './componentPlacement'
+import {
+  buildComponentPlacement,
+  canPlaceOnHit,
+  clampAnchorToPlaneBoundsWithWarnings,
+  constrainComponentTransform,
+  projectBoundComponentOntoPlane,
+  type ComponentPlacementResult,
+  type ComponentPlacementSpec,
+} from './componentPlacement'
 import type { ComponentPlacementHit, PlaneSpec, SceneComponent } from './types'
 
 const wallPlane: PlaneSpec = {
@@ -397,6 +405,35 @@ describe('constrainComponentTransform', () => {
     const patch = { position: { x: 4, y: 5, z: 6 }, rotation: { x: 0.2, y: 0.3, z: 0.4 } }
 
     expect(constrainComponentTransform(component, patch, [wallPlane, floorPlane])).toBe(patch)
+  })
+})
+
+describe('projectBoundComponentOntoPlane', () => {
+  it('repairs stale bound components that are no longer on their target plane surface', () => {
+    const movedWall = {
+      ...wallPlane,
+      position: { x: 0.5, y: 1, z: 0.3 },
+    }
+    const component = sceneComponent({
+      placement: {
+        mode: 'wall',
+        targetPlaneId: 'wall-1',
+        anchor: { x: 0.3, y: 1.2, z: 0.05 },
+        normal: { x: 0, y: 0, z: 1 },
+      },
+      targetPlaneId: 'wall-1',
+      position: { x: 0.3, y: 1.2, z: 0.15 },
+      size: wallSpec.defaultSize,
+    })
+
+    const repaired = projectBoundComponentOntoPlane(component, movedWall, wallSpec)
+
+    expect(repaired.position).toEqual({ x: 0.3, y: 1.2, z: 0.4 })
+    expect(repaired.placement).toMatchObject({
+      targetPlaneId: 'wall-1',
+      anchor: { x: 0.3, y: 1.2, z: 0.3 },
+      normal: { x: 0, y: 0, z: 1 },
+    })
   })
 })
 

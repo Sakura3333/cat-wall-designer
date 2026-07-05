@@ -278,6 +278,38 @@ describe('editorStore component placement requests', () => {
     expect(redone.placement).toEqual(updated.placement)
   })
 
+  it('moves bound wall components with their target wall transforms', () => {
+    useEditorStore.getState().addComponent('cat-shelf', {
+      planeId: 'wall-1',
+      planeType: 'wall',
+      point: { x: 0.4, y: 1.3, z: 0.02 },
+      normal: { x: 0, y: 0, z: 1 },
+      surface: 'front',
+    })
+
+    const original = useEditorStore.getState().project.components[0]
+    useEditorStore.getState().updatePlaneTransform('wall-1', {
+      position: { x: 0.5, y: 1.2, z: 0.3 },
+    })
+
+    const moved = useEditorStore.getState().project.components[0]
+    expect(moved.targetPlaneId).toBe('wall-1')
+    expect(moved.position).toEqual({ x: 0.9, y: 1.3, z: 0.4283 })
+    expect(moved.placement).toMatchObject({
+      targetPlaneId: 'wall-1',
+      anchor: { x: 0.9, y: 1.3, z: 0.32 },
+      normal: { x: 0, y: 0, z: 1 },
+    })
+
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().project.components[0].position).toEqual(original.position)
+    expect(useEditorStore.getState().project.components[0].placement).toEqual(original.placement)
+
+    useEditorStore.getState().redo()
+    expect(useEditorStore.getState().project.components[0].position).toEqual(moved.position)
+    expect(useEditorStore.getState().project.components[0].placement).toEqual(moved.placement)
+  })
+
   it('reattaches wall component transform commits across walls', () => {
     useEditorStore.setState((state) => ({
       project: {

@@ -4,7 +4,7 @@ import { buildPolygons } from '../domain/geometry/buildPolygons'
 import { buildPerspectiveRoom } from '../domain/geometry/perspective'
 import { buildWallTemplatePlanes } from '../domain/geometry/wallTemplates'
 import { createDefaultComponentParams, getComponentCatalogItem, getComponentLabel } from '../domain/scene/componentCatalog'
-import { buildComponentPlacement, constrainComponentTransform } from '../domain/scene/componentPlacement'
+import { buildComponentPlacement, constrainComponentTransform, projectBoundComponentOntoPlane, transformBoundComponentWithPlane } from '../domain/scene/componentPlacement'
 import type { ComponentPlacementFeedback, ComponentPlacementFeedbackReason, ComponentPlacementHit, ComponentPlacementMode, ComponentPlacementWarning, CornerKind, CornerPoint, EditorMode, HistoryEntry, PendingComponentPlacement, PerspectiveAxis, PerspectiveGuideLine, PlaneSpec, PlaneType, Project, RulerPoint, SceneComponent, SceneComponentKind, SourceImage, TransformMode, Vec2, WallTemplateKind } from '../domain/scene/types'
 
 type EditorStore = {
@@ -88,7 +88,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   activePerspectiveAxis: 'left',
   loadProject: (project) =>
     set({
-      project,
+      project: normalizeBoundComponentAttachments(project),
       mode: modeForProject(project),
       selectedId: project.planes.find((plane) => plane.type === 'wall')?.id ?? project.components[0]?.id ?? null,
       activeCategory: 'wall',
@@ -572,10 +572,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set((state) => {
       const plane = state.project.planes.find((item) => item.id === id)
       if (!plane) return state
+      const nextPlane = { ...plane, ...patch }
       return {
         project: {
           ...state.project,
-          planes: state.project.planes.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+          planes: state.project.planes.map((item) => (item.id === id ? nextPlane : item)),
+          components: state.project.components.map((component) => transformBoundComponentWithPlane(component, plane, nextPlane)),
         },
         history: [...state.history, { type: 'update-plane', payload: { id, from: { position: plane.position, rotation: plane.rotation }, to: patch } }],
         future: [],
@@ -759,12 +761,20 @@ function applyHistoryEntry(state: EditorStore, entry: HistoryEntry, direction: '
     }
   }
 
-  return {
-    project: {
-      ...state.project,
-      planes: state.project.planes.map((plane) => (plane.id === entry.payload.id ? ({ ...plane, ...value } as PlaneSpec) : plane)),
-    },
+  if (entry.type === 'update-plane') {
+    const currentPlane = state.project.planes.find((plane) => plane.id === entry.payload.id)
+    if (!currentPlane) return state
+    const nextPlane = { ...currentPlane, ...value }
+    return {
+      project: {
+        ...state.project,
+        planes: state.project.planes.map((plane) => (plane.id === entry.payload.id ? nextPlane : plane)),
+        components: state.project.components.map((component) => transformBoundComponentWithPlane(component, currentPlane, nextPlane)),
+      },
+    }
   }
+
+  return {}
 }
 
 function pickComponentPatch(component: SceneComponent, patch: Partial<SceneComponent>): Partial<SceneComponent> {
@@ -866,6 +876,28 @@ function placementModeLabel(mode: ComponentPlacementMode) {
 
 function planeTypeLabel(type: PlaneType) {
   return type === 'wall' ? '墙面' : '地面'
+}
+
+function normalizeBoundComponentAttachments(project: Project): Project {
+  if (project.planes.length === 0 || project.components.length === 0) return project
+
+  return {
+    ...project,
+    components: project.components.map((component) => {
+      const mode = component.placement?.mode
+      const targetPlaneId = component.placement?.targetPlaneId
+      if (!mode || mode === 'free' || !targetPlaneId) return component
+
+      const plane = project.planes.find((item) => item.id === targetPlaneId && item.type === mode)
+      if (!plane) return component
+
+      const catalogItem = getComponentCatalogItem(component.kind)
+      return projectBoundComponentOntoPlane(component, plane, {
+        defaultSize: catalogItem?.defaultSize,
+        defaultRotation: catalogItem?.defaultRotation,
+      })
+    }),
+  }
 }
 
 function modeForProject(project: Project): EditorMode {

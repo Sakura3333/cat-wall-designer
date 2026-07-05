@@ -210,6 +210,11 @@ function safeFileName(value: string) {
 }
 
 function PlacementFeedbackStrip({ feedback, onClose }: { feedback: ComponentPlacementFeedback; onClose: () => void }) {
+  useEffect(() => {
+    const timeout = window.setTimeout(onClose, feedback.level === 'error' ? 5200 : 3200)
+    return () => window.clearTimeout(timeout)
+  }, [feedback.id, feedback.level, onClose])
+
   return (
     <div className={`placement-feedback-strip ${feedback.level}`} role={feedback.level === 'error' ? 'alert' : 'status'} aria-live="polite">
       <div>

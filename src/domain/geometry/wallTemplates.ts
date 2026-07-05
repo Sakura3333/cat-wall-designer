@@ -5,6 +5,7 @@ const WALL_HEIGHT = 2.4
 const SIDE_WIDTH = 2.8
 const FLOOR_DEPTH = 3.0
 const FLOOR_MARGIN = 0.24
+const WALL_THICKNESS = 0.1
 
 export function buildWallTemplatePlanes(kind: WallTemplateKind, sourceImage: SourceImage | null, showFloor: boolean, previousPlanes: PlaneSpec[] = []) {
   const previousById = new Map(previousPlanes.map((plane) => [plane.id, plane]))
@@ -41,15 +42,15 @@ function templateWalls(kind: WallTemplateKind, sourceImage: SourceImage | null, 
 
   if (kind === 'corner-two-wall') {
     return [
-      wallPlane('template-wall-left', '左侧夹角墙', SIDE_WIDTH, WALL_HEIGHT, { x: -WALL_WIDTH / 2, y: WALL_HEIGHT / 2, z: SIDE_WIDTH / 2 }, { x: 0, y: Math.PI / 2, z: 0 }, sourceImage, previousById),
+      wallPlane('template-wall-left', '左侧夹角墙', SIDE_WIDTH, WALL_HEIGHT, { x: -(WALL_WIDTH / 2 + WALL_THICKNESS / 2), y: WALL_HEIGHT / 2, z: SIDE_WIDTH / 2 + WALL_THICKNESS / 2 }, { x: 0, y: Math.PI / 2, z: 0 }, sourceImage, previousById),
       wallPlane('template-wall-main', '正面墙', WALL_WIDTH, WALL_HEIGHT, { x: 0, y: WALL_HEIGHT / 2, z: 0 }, { x: 0, y: 0, z: 0 }, sourceImage, previousById),
     ]
   }
 
   return [
-    wallPlane('template-wall-left', '左侧夹角墙', SIDE_WIDTH, WALL_HEIGHT, { x: -WALL_WIDTH / 2, y: WALL_HEIGHT / 2, z: SIDE_WIDTH / 2 }, { x: 0, y: Math.PI / 2, z: 0 }, sourceImage, previousById),
+    wallPlane('template-wall-left', '左侧夹角墙', SIDE_WIDTH, WALL_HEIGHT, { x: -(WALL_WIDTH / 2 + WALL_THICKNESS / 2), y: WALL_HEIGHT / 2, z: SIDE_WIDTH / 2 + WALL_THICKNESS / 2 }, { x: 0, y: Math.PI / 2, z: 0 }, sourceImage, previousById),
     wallPlane('template-wall-main', '中间墙', WALL_WIDTH, WALL_HEIGHT, { x: 0, y: WALL_HEIGHT / 2, z: 0 }, { x: 0, y: 0, z: 0 }, sourceImage, previousById),
-    wallPlane('template-wall-right', '右侧夹角墙', SIDE_WIDTH, WALL_HEIGHT, { x: WALL_WIDTH / 2, y: WALL_HEIGHT / 2, z: SIDE_WIDTH / 2 }, { x: 0, y: -Math.PI / 2, z: 0 }, sourceImage, previousById),
+    wallPlane('template-wall-right', '右侧夹角墙', SIDE_WIDTH, WALL_HEIGHT, { x: WALL_WIDTH / 2 + WALL_THICKNESS / 2, y: WALL_HEIGHT / 2, z: SIDE_WIDTH / 2 + WALL_THICKNESS / 2 }, { x: 0, y: -Math.PI / 2, z: 0 }, sourceImage, previousById),
   ]
 }
 
