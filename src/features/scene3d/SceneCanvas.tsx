@@ -5,6 +5,7 @@ import { BufferGeometry, Camera, CanvasTexture, Float32BufferAttribute, Group, M
 import { useEditorStore } from '../../editor/editorStore'
 import { getComponentCatalogItem } from '../../domain/scene/componentCatalog'
 import type { ComponentPlacementHit, ComponentPlacementSurface, PlaneSpec, PlaneType, PolygonSpec, SceneComponent, Vec2 } from '../../domain/scene/types'
+import { applyConstrainedComponentTransformPreview } from './componentTransformPreview'
 
 export function SceneCanvas() {
   const project = useEditorStore((state) => state.project)
@@ -53,6 +54,11 @@ export function SceneCanvas() {
     }
   }
 
+  function constrainSelectedComponentPreview() {
+    if (!selectedObject || !selectedComponent) return
+    applyConstrainedComponentTransformPreview(selectedObject, selectedComponent, project.planes)
+  }
+
   return (
     <Canvas className="scene-canvas" camera={cameraConfig}>
       <ambientLight intensity={1.4} />
@@ -88,6 +94,7 @@ export function SceneCanvas() {
             object={selectedObject}
             mode={transformMode === 'rotate' ? 'rotate' : 'translate'}
             enabled={transformMode !== 'select'}
+            onObjectChange={constrainSelectedComponentPreview}
             onMouseUp={() => {
               commitSelectedTransform()
               setTransformMode('select')
