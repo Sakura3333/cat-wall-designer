@@ -75,7 +75,7 @@ function buildWallLayout(sizes: Array<{ width: number; height: number }>) {
       },
       {
         position: { x: centerWidth / 2, y: 1.3, z: sizes[2].width / 2 },
-        rotation: { x: 0, y: Math.PI / 2, z: 0 },
+        rotation: { x: 0, y: -Math.PI / 2, z: 0 },
       },
     ]
   }

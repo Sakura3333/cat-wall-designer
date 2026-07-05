@@ -1,5 +1,6 @@
 import { DndContext, DragEndEvent, useDroppable } from '@dnd-kit/core'
-import { PanelsTopLeft, Trash2, WandSparkles, X } from 'lucide-react'
+import { Download, FileUp, PanelsTopLeft, Trash2, WandSparkles, X } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 import type { ComponentPlacementFeedback, SceneComponentKind } from '../domain/scene/types'
 import { wallTemplates } from '../domain/scene/wallTemplates'
 import { AnnotationLayer } from '../features/annotation/AnnotationLayer'
@@ -7,11 +8,14 @@ import { ComponentPalette } from '../features/component-palette/ComponentPalette
 import { PropertyPanel } from '../features/properties/PropertyPanel'
 import { SceneCanvas } from '../features/scene3d/SceneCanvas'
 import { ImageUploadButton } from '../features/upload/ImageUploadButton'
+import { loadLatestProject, loadProject as loadPersistedProject, updateProject } from '../persistence/projectApi'
+import { deserializeProject, serializeProject } from '../persistence/serializers'
 import { Toolbar } from '../ui/panels/Toolbar'
 import { ShortcutBar, useShortcutKeys } from '../ui/panels/ShortcutBar'
 import { useEditorStore } from './editorStore'
 
 export function EditorPage() {
+  useProjectPersistence()
   const requestComponentPlacement = useEditorStore((state) => state.requestComponentPlacement)
 
   function handleDragEnd(event: DragEndEvent) {
@@ -65,6 +69,7 @@ function SceneWorkspace() {
     <section className="editor-frame">
       <div ref={setNodeRef} className={isOver ? 'preview-stage over' : 'preview-stage'}>
         <div className="draft-texture" />
+        <ProjectFileActions />
         {!hasImage && (
           <div className={hasGeometry ? 'center-upload-zone top-dock' : 'center-upload-zone'}>
             <ImageUploadButton className="upload-primary" />
@@ -120,6 +125,88 @@ function SceneWorkspace() {
       </div>
     </section>
   )
+}
+
+function useProjectPersistence() {
+  const loadProject = useEditorStore((state) => state.loadProject)
+
+  useEffect(() => {
+    let cancelled = false
+    void loadLatestProject().then((project) => {
+      if (!cancelled && project) loadProject(project)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [loadProject])
+
+  useEffect(() => {
+    let saveTimer: number | undefined
+    const unsubscribe = useEditorStore.subscribe((state, previousState) => {
+      if (state.project === previousState.project) return
+      window.clearTimeout(saveTimer)
+      saveTimer = window.setTimeout(() => {
+        void updateProject(useEditorStore.getState().project)
+      }, 300)
+    })
+
+    return () => {
+      window.clearTimeout(saveTimer)
+      unsubscribe()
+    }
+  }, [])
+}
+
+function ProjectFileActions() {
+  const inputRef = useRef<HTMLInputElement | null>(null)
+  const project = useEditorStore((state) => state.project)
+  const loadProjectIntoStore = useEditorStore((state) => state.loadProject)
+
+  function exportProject() {
+    const blob = new Blob([serializeProject(useEditorStore.getState().project)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${safeFileName(project.name || project.id)}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
+  async function importProject(file: File | undefined) {
+    if (!file) return
+    try {
+      const nextProject = deserializeProject(await file.text())
+      await updateProject(nextProject)
+      loadProjectIntoStore((await loadPersistedProject(nextProject.id)) ?? nextProject)
+    } catch {
+      window.alert('项目 JSON 无法读取，请检查文件格式。')
+    }
+  }
+
+  return (
+    <div className="project-file-toolbar" aria-label="项目文件">
+      <button type="button" title="导入项目 JSON" aria-label="导入项目 JSON" onClick={() => inputRef.current?.click()}>
+        <FileUp size={17} />
+      </button>
+      <button type="button" title="导出项目 JSON" aria-label="导出项目 JSON" onClick={exportProject}>
+        <Download size={17} />
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/json,.json"
+        hidden
+        onChange={(event) => {
+          void importProject(event.target.files?.[0])
+          event.currentTarget.value = ''
+        }}
+      />
+    </div>
+  )
+}
+
+function safeFileName(value: string) {
+  return value.trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, '-') || 'cat-wall-project'
 }
 
 function PlacementFeedbackStrip({ feedback, onClose }: { feedback: ComponentPlacementFeedback; onClose: () => void }) {

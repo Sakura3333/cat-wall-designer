@@ -302,6 +302,38 @@ button {
   background: rgba(255, 245, 239, 0.94);
 }
 
+.project-file-toolbar {
+  position: absolute;
+  z-index: 8;
+  top: 22px;
+  right: 116px;
+  display: flex;
+  gap: 8px;
+  padding: 5px;
+  border: 2px solid rgba(73, 65, 55, 0.2);
+  border-radius: 18px;
+  background: rgba(255, 250, 242, 0.76);
+  box-shadow: 6px 6px 0 rgba(60, 50, 38, 0.06);
+  backdrop-filter: blur(6px);
+}
+
+.project-file-toolbar button {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(73, 65, 55, 0.62);
+  border-radius: 12px;
+  background: #fffdf8;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.project-file-toolbar button:hover {
+  transform: translateY(-1px);
+  background: #d7e6dc;
+}
+
 .draft-texture {
   position: absolute;
   inset: 0;
@@ -2050,6 +2082,11 @@ button {
     width: 72px;
   }
 
+  .project-file-toolbar {
+    right: 104px;
+    top: 18px;
+  }
+
   .property-detail-panel {
     width: 300px;
     max-height: min(420px, calc(100vh - 140px));
@@ -2171,6 +2208,11 @@ button {
 
   .stage-chip {
     top: 122px;
+  }
+
+  .project-file-toolbar {
+    top: 84px;
+    right: 12px;
   }
 
   .annotation-layer {

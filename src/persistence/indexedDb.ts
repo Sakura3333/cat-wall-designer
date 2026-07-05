@@ -1,6 +1,10 @@
 const DB_NAME = 'cat-wall-editor'
 const STORE_NAME = 'drafts'
 
+export function sourceImageBlobKey(projectId: string) {
+  return `source-image:${projectId}`
+}
+
 export async function saveBlob(key: string, blob: Blob) {
   const db = await openDb()
   return new Promise<void>((resolve, reject) => {

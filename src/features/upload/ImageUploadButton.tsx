@@ -1,7 +1,7 @@
 import { UploadCloud } from 'lucide-react'
 import { useRef } from 'react'
 import { useEditorStore } from '../../editor/editorStore'
-import { saveBlob } from '../../persistence/indexedDb'
+import { saveBlob, sourceImageBlobKey } from '../../persistence/indexedDb'
 
 type ImageUploadButtonProps = {
   label?: string
@@ -11,10 +11,12 @@ type ImageUploadButtonProps = {
 export function ImageUploadButton({ label = '上传室内图', className = 'pill-button' }: ImageUploadButtonProps) {
   const inputRef = useRef<HTMLInputElement | null>(null)
   const setSourceImage = useEditorStore((state) => state.setSourceImage)
+  const projectId = useEditorStore((state) => state.project.id)
 
   async function handleFile(file: File | undefined) {
     if (!file) return
     const url = URL.createObjectURL(file)
+    await saveBlob(sourceImageBlobKey(projectId), file)
     await saveBlob('latest-source-image', file)
     const image = new Image()
     image.onload = () => {

@@ -19,6 +19,7 @@ type EditorStore = {
   geometryErrors: string[]
   pendingComponentPlacement: PendingComponentPlacement | null
   componentPlacementFeedback: ComponentPlacementFeedback | null
+  loadProject: (project: Project) => void
   setSourceImage: (sourceImage: SourceImage) => void
   clearSourceImage: () => void
   setMode: (mode: EditorMode) => void
@@ -85,6 +86,20 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   pendingComponentPlacement: null,
   componentPlacementFeedback: null,
   activePerspectiveAxis: 'left',
+  loadProject: (project) =>
+    set({
+      project,
+      mode: modeForProject(project),
+      selectedId: project.planes.find((plane) => plane.type === 'wall')?.id ?? project.components[0]?.id ?? null,
+      activeCategory: 'wall',
+      activePerspectiveAxis: 'left',
+      transformMode: 'select',
+      history: [],
+      future: [],
+      geometryErrors: [],
+      pendingComponentPlacement: null,
+      componentPlacementFeedback: null,
+    }),
   setSourceImage: (sourceImage) =>
     set((state) => ({
       project: { ...state.project, sourceImage, corners: [], ruler: null, perspectiveGuides: [], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [], components: [] },
@@ -851,4 +866,10 @@ function placementModeLabel(mode: ComponentPlacementMode) {
 
 function planeTypeLabel(type: PlaneType) {
   return type === 'wall' ? '墙面' : '地面'
+}
+
+function modeForProject(project: Project): EditorMode {
+  if (project.planes.length > 0) return 'editing-planes'
+  if (project.sourceImage) return 'marking-perspective'
+  return 'empty'
 }
