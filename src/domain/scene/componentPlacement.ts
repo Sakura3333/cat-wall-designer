@@ -73,8 +73,8 @@ export function buildComponentPlacement(spec: ComponentPlacementSpec, hit: Compo
   }
 }
 
-export function clampAnchorToPlaneBounds(anchor: Vec3, plane: PlaneSpec, componentSize: Vec3, mode: ComponentPlacementMode): Vec3 {
-  return clampAnchorToPlaneBoundsWithWarnings(anchor, plane, componentSize, mode).anchor
+export function clampAnchorToPlaneBounds(anchor: Vec3, plane: PlaneSpec, componentSize: Vec3, mode: ComponentPlacementMode, surfaceAnchor?: Vec3): Vec3 {
+  return clampAnchorToPlaneBoundsWithWarnings(anchor, plane, componentSize, mode, surfaceAnchor).anchor
 }
 
 export function constrainComponentTransform(
@@ -94,7 +94,7 @@ export function constrainComponentTransform(
   const offset = mode === 'wall' ? size.z / 2 : size.y / 2
   const sourcePosition = patch.position ?? component.position
   const inferredAnchor = patch.position ? subtract(sourcePosition, scale(normal, offset)) : component.placement.anchor ?? subtract(sourcePosition, scale(normal, offset))
-  const anchor = clampAnchorToPlaneBounds(inferredAnchor, plane, size, mode)
+  const anchor = clampAnchorToPlaneBounds(inferredAnchor, plane, size, mode, component.placement.anchor)
 
   return {
     ...patch,
@@ -109,10 +109,10 @@ export function constrainComponentTransform(
   }
 }
 
-export function clampAnchorToPlaneBoundsWithWarnings(anchor: Vec3, plane: PlaneSpec, componentSize: Vec3, mode: ComponentPlacementMode): ComponentPlacementClampResult {
+export function clampAnchorToPlaneBoundsWithWarnings(anchor: Vec3, plane: PlaneSpec, componentSize: Vec3, mode: ComponentPlacementMode, surfaceAnchor?: Vec3): ComponentPlacementClampResult {
   if (mode === 'free') return { anchor, warnings: [] }
 
-  const local = worldToPlaneLocal(anchor, plane)
+  const local = normalizePlaneSurfaceLocal(worldToPlaneLocal(anchor, plane), surfaceAnchor, plane)
   const warnings: ComponentPlacementWarning[] = []
 
   if (mode === 'wall') {
@@ -124,6 +124,14 @@ export function clampAnchorToPlaneBoundsWithWarnings(anchor: Vec3, plane: PlaneS
   const x = clampOnPlaneAxis(local.x, plane.width, componentSize.x, warnings, 'width')
   const y = clampOnPlaneAxis(local.y, plane.height, componentSize.z, warnings, 'depth')
   return { anchor: roundVec3(planeLocalToWorld({ ...local, x, y }, plane)), warnings }
+}
+
+function normalizePlaneSurfaceLocal(local: Vec3, surfaceAnchor: Vec3 | undefined, plane: PlaneSpec): Vec3 {
+  if (!surfaceAnchor) return local
+  return {
+    ...local,
+    z: worldToPlaneLocal(surfaceAnchor, plane).z,
+  }
 }
 
 function clampOnPlaneAxis(value: number, planeExtent: number, componentExtent: number, warnings: ComponentPlacementWarning[], axis: 'width' | 'height' | 'depth') {

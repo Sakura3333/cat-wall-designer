@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildComponentPlacement, canPlaceOnHit, clampAnchorToPlaneBoundsWithWarnings, type ComponentPlacementResult, type ComponentPlacementSpec } from './componentPlacement'
-import type { ComponentPlacementHit, PlaneSpec } from './types'
+import { buildComponentPlacement, canPlaceOnHit, clampAnchorToPlaneBoundsWithWarnings, constrainComponentTransform, type ComponentPlacementResult, type ComponentPlacementSpec } from './componentPlacement'
+import type { ComponentPlacementHit, PlaneSpec, SceneComponent } from './types'
 
 const wallPlane: PlaneSpec = {
   id: 'wall-1',
@@ -285,6 +285,85 @@ describe('clampAnchorToPlaneBoundsWithWarnings', () => {
   })
 })
 
+describe('constrainComponentTransform', () => {
+  it('keeps wall components attached to their original contact surface after movement', () => {
+    const component = sceneComponent({
+      placement: {
+        mode: 'wall',
+        targetPlaneId: 'wall-1',
+        anchor: { x: 0.3, y: 1.2, z: 0.05 },
+        normal: { x: 0, y: 0, z: 1 },
+      },
+      position: { x: 0.3, y: 1.2, z: 0.15 },
+      size: wallSpec.defaultSize,
+    })
+
+    const patch = constrainComponentTransform(component, { position: { x: 1.5, y: 2.5, z: 1 } }, [wallPlane])
+
+    expect(patch.position).toEqual({ x: 0.8, y: 1.85, z: 0.15 })
+    expect(patch.placement).toMatchObject({
+      mode: 'wall',
+      targetPlaneId: 'wall-1',
+      anchor: { x: 0.8, y: 1.85, z: 0.05 },
+      normal: { x: 0, y: 0, z: 1 },
+    })
+  })
+
+  it('keeps floor components grounded after movement', () => {
+    const component = sceneComponent({
+      placement: {
+        mode: 'floor',
+        targetPlaneId: 'floor-1',
+        anchor: { x: 0.2, y: 0, z: 0.4 },
+        normal: { x: 0, y: 1, z: 0 },
+      },
+      position: { x: 0.2, y: 0.2, z: 0.4 },
+      size: floorSpec.defaultSize,
+    })
+
+    const patch = constrainComponentTransform(component, { position: { x: 1.5, y: 2, z: -1.8 } }, [floorPlane])
+
+    expect(patch.position).toEqual({ x: 0.8, y: 0.2, z: -1.25 })
+    expect(patch.placement).toMatchObject({
+      mode: 'floor',
+      targetPlaneId: 'floor-1',
+      anchor: { x: 0.8, y: 0, z: -1.25 },
+      normal: { x: 0, y: 1, z: 0 },
+    })
+  })
+
+  it('recalculates the center when a bound component changes size', () => {
+    const component = sceneComponent({
+      placement: {
+        mode: 'wall',
+        targetPlaneId: 'wall-1',
+        anchor: { x: 0.3, y: 1.2, z: 0.05 },
+        normal: { x: 0, y: 0, z: 1 },
+      },
+      position: { x: 0.3, y: 1.2, z: 0.15 },
+      size: wallSpec.defaultSize,
+    })
+
+    const patch = constrainComponentTransform(component, { size: { x: 0.4, y: 0.3, z: 0.4 } }, [wallPlane])
+
+    expect(patch.size).toEqual({ x: 0.4, y: 0.3, z: 0.4 })
+    expect(patch.position).toEqual({ x: 0.3, y: 1.2, z: 0.25 })
+    expect(patch.placement).toMatchObject({
+      anchor: { x: 0.3, y: 1.2, z: 0.05 },
+    })
+  })
+
+  it('leaves free components unconstrained', () => {
+    const component = sceneComponent({
+      placement: { mode: 'free' },
+      position: { x: 0, y: 0, z: 0 },
+    })
+    const patch = { position: { x: 4, y: 5, z: 6 }, rotation: { x: 0.2, y: 0.3, z: 0.4 } }
+
+    expect(constrainComponentTransform(component, patch, [wallPlane, floorPlane])).toBe(patch)
+  })
+})
+
 type PlacedResult = Extract<ComponentPlacementResult, { canPlace: true }>
 
 function placed(result: ComponentPlacementResult): PlacedResult {
@@ -298,6 +377,18 @@ function hit(patch: Partial<ComponentPlacementHit>): ComponentPlacementHit {
     planeType: 'wall',
     point: { x: 0, y: 0, z: 0 },
     normal: { x: 0, y: 0, z: 1 },
+    ...patch,
+  }
+}
+
+function sceneComponent(patch: Partial<SceneComponent>): SceneComponent {
+  return {
+    id: 'component-1',
+    kind: 'test-component',
+    name: 'Test Component',
+    position: { x: 0, y: 0, z: 0 },
+    rotation: { x: 0, y: 0, z: 0 },
+    size: { x: 0.4, y: 0.4, z: 0.4 },
     ...patch,
   }
 }

@@ -4,7 +4,7 @@ import { buildPolygons } from '../domain/geometry/buildPolygons'
 import { buildPerspectiveRoom } from '../domain/geometry/perspective'
 import { buildWallTemplatePlanes } from '../domain/geometry/wallTemplates'
 import { createDefaultComponentParams, getComponentCatalogItem, getComponentLabel } from '../domain/scene/componentCatalog'
-import { buildComponentPlacement } from '../domain/scene/componentPlacement'
+import { buildComponentPlacement, constrainComponentTransform } from '../domain/scene/componentPlacement'
 import type { ComponentPlacementHit, ComponentPlacementMode, CornerKind, CornerPoint, EditorMode, HistoryEntry, PendingComponentPlacement, PerspectiveAxis, PerspectiveGuideLine, PlaneSpec, Project, RulerPoint, SceneComponent, SceneComponentKind, SourceImage, TransformMode, Vec2, WallTemplateKind } from '../domain/scene/types'
 
 type EditorStore = {
@@ -537,13 +537,15 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set((state) => {
       const component = state.project.components.find((item) => item.id === id)
       if (!component) return state
-      const from = pickComponentPatch(component, patch)
+      const catalogItem = getComponentCatalogItem(component.kind)
+      const constrainedPatch = constrainComponentTransform(component, patch, state.project.planes, { defaultSize: catalogItem?.defaultSize })
+      const from = pickComponentPatch(component, constrainedPatch)
       return {
         project: {
           ...state.project,
-          components: state.project.components.map((item) => (item.id === id ? { ...item, ...patch } : item)),
+          components: state.project.components.map((item) => (item.id === id ? { ...item, ...constrainedPatch } : item)),
         },
-        history: [...state.history, { type: 'update-component', payload: { id, from, to: patch } }],
+        history: [...state.history, { type: 'update-component', payload: { id, from, to: constrainedPatch } }],
         future: [],
       }
     }),
@@ -722,6 +724,8 @@ function pickComponentPatch(component: SceneComponent, patch: Partial<SceneCompo
   if ('size' in patch) from.size = component.size
   if ('material' in patch) from.material = component.material
   if ('params' in patch) from.params = component.params
+  if ('placement' in patch) from.placement = component.placement
+  if ('targetPlaneId' in patch) from.targetPlaneId = component.targetPlaneId
   return from
 }
 
