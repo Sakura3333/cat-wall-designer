@@ -538,7 +538,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const component = state.project.components.find((item) => item.id === id)
       if (!component) return state
       const catalogItem = getComponentCatalogItem(component.kind)
-      const constrainedPatch = constrainComponentTransform(component, patch, state.project.planes, { defaultSize: catalogItem?.defaultSize })
+      const constrainedPatch = constrainComponentTransform(component, patch, state.project.planes, {
+        defaultSize: catalogItem?.defaultSize,
+        defaultRotation: catalogItem?.defaultRotation,
+      })
       const from = pickComponentPatch(component, constrainedPatch)
       return {
         project: {

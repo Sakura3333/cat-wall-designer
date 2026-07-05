@@ -12,7 +12,10 @@ export function applyConstrainedComponentTransformPreview(object: Pick<Object3D,
       rotation: toVec3(object.rotation),
     },
     planes,
-    { defaultSize: catalogItem?.defaultSize },
+    {
+      defaultSize: catalogItem?.defaultSize,
+      defaultRotation: catalogItem?.defaultRotation,
+    },
   )
 
   if (patch.position) {

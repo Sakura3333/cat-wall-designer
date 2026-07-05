@@ -309,6 +309,33 @@ describe('constrainComponentTransform', () => {
     })
   })
 
+  it('reattaches wall components to the closest wall and rotates them across walls', () => {
+    const component = sceneComponent({
+      placement: {
+        mode: 'wall',
+        targetPlaneId: 'wall-1',
+        anchor: { x: 0.3, y: 1.2, z: 0.05 },
+        normal: { x: 0, y: 0, z: 1 },
+      },
+      targetPlaneId: 'wall-1',
+      position: { x: 0.3, y: 1.2, z: 0.15 },
+      rotation: { x: 0, y: 0, z: 0 },
+      size: wallSpec.defaultSize,
+    })
+
+    const patch = constrainComponentTransform(component, { position: { x: 1.7, y: 1.5, z: -0.3 } }, [wallPlane, sideWallPlane])
+
+    expect(patch.targetPlaneId).toBe('wall-side')
+    expect(patch.position).toEqual({ x: 1.15, y: 1.5, z: -0.3 })
+    expect(patch.rotation).toEqual({ x: 0, y: 1.570796, z: 0 })
+    expect(patch.placement).toMatchObject({
+      mode: 'wall',
+      targetPlaneId: 'wall-side',
+      anchor: { x: 1.05, y: 1.5, z: -0.3 },
+      normal: { x: 1, y: 0, z: 0 },
+    })
+  })
+
   it('keeps floor components grounded after movement', () => {
     const component = sceneComponent({
       placement: {

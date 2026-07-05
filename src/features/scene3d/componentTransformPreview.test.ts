@@ -27,6 +27,18 @@ const floorPlane: PlaneSpec = {
   rotation: { x: -Math.PI / 2, y: 0, z: 0 },
 }
 
+const sideWallPlane: PlaneSpec = {
+  id: 'wall-side',
+  name: 'Side Wall',
+  type: 'wall',
+  width: 3,
+  height: 2.4,
+  textureEnabled: false,
+  uvMode: 'auto',
+  position: { x: 1.5, y: 1.2, z: 0 },
+  rotation: { x: 0, y: Math.PI / 2, z: 0 },
+}
+
 describe('applyConstrainedComponentTransformPreview', () => {
   it('projects wall component preview movement back to the contact surface immediately', () => {
     const object = new Object3D()
@@ -37,6 +49,17 @@ describe('applyConstrainedComponentTransformPreview', () => {
 
     expect(toPlainVec3(object.position)).toEqual({ x: 1.14, y: 2.23, z: 0.11 })
     expect(toPlainVec3(object.rotation)).toEqual({ x: 0.1, y: 0.2, z: 0.3 })
+  })
+
+  it('reattaches and rotates wall previews when moved across walls', () => {
+    const object = new Object3D()
+    object.position.set(2, 1.4, -0.4)
+    object.rotation.set(0, 0, 0)
+
+    applyConstrainedComponentTransformPreview(object, wallComponent(), [wallPlane, sideWallPlane])
+
+    expect(toPlainVec3(object.position)).toEqual({ x: 1.61, y: 1.4, z: -0.4 })
+    expect(toPlainVec3(object.rotation)).toEqual({ x: 0, y: 1.570796, z: 0 })
   })
 
   it('projects floor component preview movement back to the floor immediately', () => {

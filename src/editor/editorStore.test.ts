@@ -43,6 +43,18 @@ const baseProject: Project = {
   },
 }
 
+const sideWallPlane: Project['planes'][number] = {
+  id: 'wall-side',
+  name: 'Side Wall',
+  type: 'wall',
+  width: 3,
+  height: 2.4,
+  textureEnabled: false,
+  uvMode: 'auto',
+  position: { x: 1.5, y: 1.2, z: 0 },
+  rotation: { x: 0, y: Math.PI / 2, z: 0 },
+}
+
 describe('editorStore component placement requests', () => {
   beforeEach(() => {
     useEditorStore.setState({
@@ -217,6 +229,38 @@ describe('editorStore component placement requests', () => {
     const redone = useEditorStore.getState().project.components[0]
     expect(redone.position).toEqual(updated.position)
     expect(redone.placement).toEqual(updated.placement)
+  })
+
+  it('reattaches wall component transform commits across walls', () => {
+    useEditorStore.setState((state) => ({
+      project: {
+        ...state.project,
+        planes: [...state.project.planes, sideWallPlane],
+      },
+    }))
+    useEditorStore.getState().addComponent('cat-shelf', {
+      planeId: 'wall-1',
+      planeType: 'wall',
+      point: { x: 0.4, y: 1.3, z: 0.02 },
+      normal: { x: 0, y: 0, z: 1 },
+      surface: 'front',
+    })
+
+    const component = useEditorStore.getState().project.components[0]
+    useEditorStore.getState().updateComponentTransform(component.id, {
+      position: { x: 2, y: 1.4, z: -0.4 },
+    })
+
+    const updated = useEditorStore.getState().project.components[0]
+    expect(updated.targetPlaneId).toBe('wall-side')
+    expect(updated.position).toEqual({ x: 1.61, y: 1.4, z: -0.4 })
+    expect(updated.rotation).toEqual({ x: 0, y: 1.570796, z: 0 })
+    expect(updated.placement).toMatchObject({
+      mode: 'wall',
+      targetPlaneId: 'wall-side',
+      anchor: { x: 1.52, y: 1.4, z: -0.4 },
+      normal: { x: 1, y: 0, z: 0 },
+    })
   })
 
   it('recalculates grounded component centers after size changes', () => {

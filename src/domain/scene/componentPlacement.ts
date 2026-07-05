@@ -24,6 +24,15 @@ export type ComponentPlacementClampResult = {
   warnings: ComponentPlacementWarning[]
 }
 
+type TransformAttachment = {
+  plane: PlaneSpec
+  anchor: Vec3
+  normal: Vec3
+  position: Vec3
+  targetChanged: boolean
+  score: number
+}
+
 const FREE_DROP_OFFSET = 0.08
 
 export function canPlaceOnHit(mode: ComponentPlacementMode, hit: ComponentPlacementHit): boolean {
@@ -86,26 +95,71 @@ export function constrainComponentTransform(
   const mode = component.placement?.mode
   if (!mode || mode === 'free' || !component.placement?.targetPlaneId) return patch
 
-  const plane = planes.find((item) => item.id === component.placement?.targetPlaneId && item.type === mode)
-  if (!plane) return patch
+  const currentPlane = planes.find((item) => item.id === component.placement?.targetPlaneId && item.type === mode)
+  if (!currentPlane) return patch
 
   const size = patch.size ?? component.size ?? spec?.defaultSize ?? { x: 0.46, y: 0.28, z: 0.14 }
-  const normal = component.placement.normal ?? planeSurfaceNormal(plane)
-  const offset = mode === 'wall' ? size.z / 2 : size.y / 2
   const sourcePosition = patch.position ?? component.position
-  const inferredAnchor = patch.position ? subtract(sourcePosition, scale(normal, offset)) : component.placement.anchor ?? subtract(sourcePosition, scale(normal, offset))
-  const anchor = clampAnchorToPlaneBounds(inferredAnchor, plane, size, mode, component.placement.anchor)
+  const attachment =
+    mode === 'wall' && patch.position
+      ? resolveWallTransformAttachment(component, sourcePosition, size, currentPlane, planes)
+      : buildTransformAttachment(currentPlane, mode, sourcePosition, size, component.placement.anchor, false)
+  const rotation = attachment.targetChanged
+    ? placementRotation(attachment.plane, {
+        placement: mode,
+        defaultSize: size,
+        defaultRotation: spec?.defaultRotation ?? { x: 0, y: 0, z: 0 },
+      })
+    : patch.rotation
 
   return {
     ...patch,
-    position: roundVec3(add(anchor, scale(normal, offset))),
+    targetPlaneId: attachment.plane.id,
+    position: attachment.position,
+    ...(rotation ? { rotation } : {}),
     placement: {
       ...component.placement,
       mode,
-      targetPlaneId: plane.id,
-      anchor,
-      normal,
+      targetPlaneId: attachment.plane.id,
+      anchor: attachment.anchor,
+      normal: attachment.normal,
     },
+  }
+}
+
+function resolveWallTransformAttachment(component: SceneComponent, sourcePosition: Vec3, size: Vec3, currentPlane: PlaneSpec, planes: PlaneSpec[]): TransformAttachment {
+  const surfaceLocalZ = component.placement?.anchor ? worldToPlaneLocal(component.placement.anchor, currentPlane).z : undefined
+  const wallPlanes = planes.filter((plane) => plane.type === 'wall')
+
+  return wallPlanes.reduce<TransformAttachment | null>((best, plane) => {
+    const surfaceAnchor = surfaceLocalZ === undefined ? undefined : planeLocalToWorld({ x: 0, y: 0, z: surfaceLocalZ }, plane)
+    const attachment = buildTransformAttachment(plane, 'wall', sourcePosition, size, surfaceAnchor, plane.id !== currentPlane.id)
+    if (!best || attachment.score < best.score) return attachment
+    return best
+  }, null) ?? buildTransformAttachment(currentPlane, 'wall', sourcePosition, size, component.placement?.anchor, false)
+}
+
+function buildTransformAttachment(
+  plane: PlaneSpec,
+  mode: Exclude<ComponentPlacementMode, 'free'>,
+  sourcePosition: Vec3,
+  size: Vec3,
+  surfaceAnchor: Vec3 | undefined,
+  targetChanged: boolean,
+): TransformAttachment {
+  const normal = planeSurfaceNormal(plane)
+  const offset = mode === 'wall' ? size.z / 2 : size.y / 2
+  const inferredAnchor = subtract(sourcePosition, scale(normal, offset))
+  const anchor = clampAnchorToPlaneBounds(inferredAnchor, plane, size, mode, surfaceAnchor)
+  const position = roundVec3(add(anchor, scale(normal, offset)))
+
+  return {
+    plane,
+    anchor,
+    normal,
+    position,
+    targetChanged,
+    score: distance(sourcePosition, position),
   }
 }
 
@@ -226,6 +280,10 @@ function subtract(a: Vec3, b: Vec3): Vec3 {
 
 function scale(vector: Vec3, value: number): Vec3 {
   return { x: vector.x * value, y: vector.y * value, z: vector.z * value }
+}
+
+function distance(a: Vec3, b: Vec3): number {
+  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 }
 
 function roundVec3(vector: Vec3): Vec3 {
