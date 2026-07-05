@@ -47,7 +47,7 @@ describe('applyConstrainedComponentTransformPreview', () => {
 
     applyConstrainedComponentTransformPreview(object, wallComponent(), [wallPlane])
 
-    expect(toPlainVec3(object.position)).toEqual({ x: 1.14, y: 2.23, z: 0.11 })
+    expect(toPlainVec3(object.position)).toEqual({ x: 1.14, y: 2.23, z: 0.14 })
     expect(toPlainVec3(object.rotation)).toEqual({ x: 0.1, y: 0.2, z: 0.3 })
   })
 
@@ -58,7 +58,7 @@ describe('applyConstrainedComponentTransformPreview', () => {
 
     applyConstrainedComponentTransformPreview(object, wallComponent(), [wallPlane, sideWallPlane])
 
-    expect(toPlainVec3(object.position)).toEqual({ x: 1.61, y: 1.4, z: -0.4 })
+    expect(toPlainVec3(object.position)).toEqual({ x: 1.64, y: 1.4, z: -0.4 })
     expect(toPlainVec3(object.rotation)).toEqual({ x: 0, y: 1.570796, z: 0 })
   })
 
@@ -82,7 +82,7 @@ describe('applyConstrainedComponentTransformPreview', () => {
       targetPlaneId: 'wall-1',
       normal: { x: 0, y: 0, z: 1 },
     })
-    expect(toPlainVec3(object.position)).toEqual({ x: 0.4, y: 1.4, z: 0.11 })
+    expect(toPlainVec3(object.position)).toEqual({ x: 0.4, y: 1.4, z: 0.14 })
     expect(toPlainVec3(object.rotation)).toEqual({ x: 0, y: 0, z: 0 })
   })
 
@@ -116,10 +116,10 @@ function wallComponent(): SceneComponent {
     placement: {
       mode: 'wall',
       targetPlaneId: 'wall-1',
-      anchor: { x: 0.4, y: 1.3, z: 0.02 },
+      anchor: { x: 0.4, y: 1.3, z: 0.05 },
       normal: { x: 0, y: 0, z: 1 },
     },
-    position: { x: 0.4, y: 1.3, z: 0.11 },
+    position: { x: 0.4, y: 1.3, z: 0.14 },
     rotation: { x: 0, y: 0, z: 0 },
     scale: { x: 1, y: 1, z: 1 },
     size: { x: 0.72, y: 0.34, z: 0.18 },

@@ -97,12 +97,12 @@ describe('editorStore component placement requests', () => {
 
     const component = useEditorStore.getState().project.components[0]
     expect(component.targetPlaneId).toBe('wall-1')
-    expect(component.position).toEqual({ x: 0.4, y: 1.3, z: 0.1283 })
+    expect(component.position).toEqual({ x: 0.4, y: 1.3, z: 0.1583 })
     expect(component.size).toEqual({ x: 0.2833, y: 0.4662, z: 0.2166 })
     expect(component.placement).toMatchObject({
       mode: 'wall',
       targetPlaneId: 'wall-1',
-      anchor: { x: 0.4, y: 1.3, z: 0.02 },
+      anchor: { x: 0.4, y: 1.3, z: 0.05 },
       normal: { x: 0, y: 0, z: 1 },
     })
   })
@@ -137,11 +137,11 @@ describe('editorStore component placement requests', () => {
     })
 
     const component = useEditorStore.getState().project.components[0]
-    expect(component.position).toEqual({ x: 1.35835, y: 2.1669, z: 0.1283 })
+    expect(component.position).toEqual({ x: 1.35835, y: 2.1669, z: 0.1583 })
     expect(component.placement).toMatchObject({
       mode: 'wall',
       targetPlaneId: 'wall-1',
-      anchor: { x: 1.35835, y: 2.1669, z: 0.02 },
+      anchor: { x: 1.35835, y: 2.1669, z: 0.05 },
     })
   })
 
@@ -260,11 +260,11 @@ describe('editorStore component placement requests', () => {
     })
 
     const updated = useEditorStore.getState().project.components[0]
-    expect(updated.position).toEqual({ x: 1.35835, y: 2.1669, z: 0.1283 })
+    expect(updated.position).toEqual({ x: 1.35835, y: 2.1669, z: 0.1583 })
     expect(updated.placement).toMatchObject({
       mode: 'wall',
       targetPlaneId: 'wall-1',
-      anchor: { x: 1.35835, y: 2.1669, z: 0.02 },
+      anchor: { x: 1.35835, y: 2.1669, z: 0.05 },
     })
 
     useEditorStore.getState().undo()
@@ -294,10 +294,10 @@ describe('editorStore component placement requests', () => {
 
     const moved = useEditorStore.getState().project.components[0]
     expect(moved.targetPlaneId).toBe('wall-1')
-    expect(moved.position).toEqual({ x: 0.9, y: 1.3, z: 0.4283 })
+    expect(moved.position).toEqual({ x: 0.9, y: 1.3, z: 0.4583 })
     expect(moved.placement).toMatchObject({
       targetPlaneId: 'wall-1',
-      anchor: { x: 0.9, y: 1.3, z: 0.32 },
+      anchor: { x: 0.9, y: 1.3, z: 0.35 },
       normal: { x: 0, y: 0, z: 1 },
     })
 
@@ -332,12 +332,12 @@ describe('editorStore component placement requests', () => {
 
     const updated = useEditorStore.getState().project.components[0]
     expect(updated.targetPlaneId).toBe('wall-side')
-    expect(updated.position).toEqual({ x: 1.6283, y: 1.4, z: -0.4 })
+    expect(updated.position).toEqual({ x: 1.6583, y: 1.4, z: -0.4 })
     expect(updated.rotation).toEqual({ x: 0, y: 1.570796, z: 0 })
     expect(updated.placement).toMatchObject({
       mode: 'wall',
       targetPlaneId: 'wall-side',
-      anchor: { x: 1.52, y: 1.4, z: -0.4 },
+      anchor: { x: 1.55, y: 1.4, z: -0.4 },
       normal: { x: 1, y: 0, z: 0 },
     })
   })

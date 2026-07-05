@@ -5,6 +5,7 @@ import {
   clampAnchorToPlaneBoundsWithWarnings,
   constrainComponentTransform,
   projectBoundComponentOntoPlane,
+  transformBoundComponentWithPlane,
   type ComponentPlacementResult,
   type ComponentPlacementSpec,
 } from './componentPlacement'
@@ -290,14 +291,14 @@ describe('clampAnchorToPlaneBoundsWithWarnings', () => {
   it('returns a typed warning result for callers that need to surface boundary state', () => {
     const result = clampAnchorToPlaneBoundsWithWarnings({ x: 1, y: 1, z: 0 }, wallPlane, { x: 2.4, y: 2.6, z: 0.2 }, 'wall')
 
-    expect(result.anchor).toEqual({ x: 0, y: 1, z: 0 })
+    expect(result.anchor).toEqual({ x: 0, y: 1, z: 0.05 })
     expect(result.warnings).toEqual(['component-width-exceeds-plane', 'component-height-exceeds-plane'])
   })
 
   it('reports when an otherwise valid anchor is clamped to the boundary', () => {
     const result = clampAnchorToPlaneBoundsWithWarnings({ x: 1.3, y: 1, z: 0 }, wallPlane, { x: 0.4, y: 0.3, z: 0.2 }, 'wall')
 
-    expect(result.anchor).toEqual({ x: 0.8, y: 1, z: 0 })
+    expect(result.anchor).toEqual({ x: 0.8, y: 1, z: 0.05 })
     expect(result.warnings).toEqual(['component-anchor-clamped'])
   })
 })
@@ -428,10 +429,39 @@ describe('projectBoundComponentOntoPlane', () => {
 
     const repaired = projectBoundComponentOntoPlane(component, movedWall, wallSpec)
 
-    expect(repaired.position).toEqual({ x: 0.3, y: 1.2, z: 0.4 })
+    expect(repaired.position).toEqual({ x: 0.3, y: 1.2, z: 0.45 })
     expect(repaired.placement).toMatchObject({
       targetPlaneId: 'wall-1',
-      anchor: { x: 0.3, y: 1.2, z: 0.3 },
+      anchor: { x: 0.3, y: 1.2, z: 0.35 },
+      normal: { x: 0, y: 0, z: 1 },
+    })
+  })
+})
+
+describe('transformBoundComponentWithPlane', () => {
+  it('keeps moved wall components anchored on the visible wall surface', () => {
+    const movedWall = {
+      ...wallPlane,
+      position: { x: 0.5, y: 1, z: 0.3 },
+    }
+    const component = sceneComponent({
+      placement: {
+        mode: 'wall',
+        targetPlaneId: 'wall-1',
+        anchor: { x: 0.3, y: 1.2, z: 0 },
+        normal: { x: 0, y: 0, z: 1 },
+      },
+      targetPlaneId: 'wall-1',
+      position: { x: 0.3, y: 1.2, z: 0.1 },
+      size: wallSpec.defaultSize,
+    })
+
+    const moved = transformBoundComponentWithPlane(component, wallPlane, movedWall, wallSpec)
+
+    expect(moved.position).toEqual({ x: 0.8, y: 1.2, z: 0.45 })
+    expect(moved.placement).toMatchObject({
+      targetPlaneId: 'wall-1',
+      anchor: { x: 0.8, y: 1.2, z: 0.35 },
       normal: { x: 0, y: 0, z: 1 },
     })
   })

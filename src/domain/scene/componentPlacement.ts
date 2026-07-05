@@ -32,7 +32,7 @@ type TransformAttachment = {
 }
 
 const FREE_DROP_OFFSET = 0.08
-const SURFACE_LOCAL_TOLERANCE = 0.08
+const WALL_SURFACE_LOCAL_Z = 0.05
 
 export function canPlaceOnHit(mode: ComponentPlacementMode, hit: ComponentPlacementHit): boolean {
   if (mode === 'free') return true
@@ -141,7 +141,7 @@ export function transformBoundComponentWithPlane(
   const offset = mode === 'wall' ? size.z / 2 : size.y / 2
   const previousNormal = planeSurfaceNormal(previousPlane)
   const previousAnchor = component.placement.anchor ?? subtract(component.position, scale(previousNormal, offset))
-  const localAnchor = worldToPlaneLocal(previousAnchor, previousPlane)
+  const localAnchor = wallSurfaceLocal(worldToPlaneLocal(previousAnchor, previousPlane), mode)
   const nextAnchor = roundVec3(planeLocalToWorld(localAnchor, nextPlane))
   const nextNormal = planeSurfaceNormal(nextPlane)
   const localRotation = subtract(component.rotation, previousPlane.rotation)
@@ -170,9 +170,8 @@ export function projectBoundComponentOntoPlane(component: SceneComponent, plane:
   const normal = planeSurfaceNormal(plane)
   const offset = mode === 'wall' ? size.z / 2 : size.y / 2
   const inferredAnchor = subtract(component.position, scale(normal, offset))
-  const local = worldToPlaneLocal(inferredAnchor, plane)
-  const surfaceLocalZ = Math.abs(local.z) <= SURFACE_LOCAL_TOLERANCE ? local.z : 0
-  const anchor = clampAnchorToPlaneBounds(planeLocalToWorld({ ...local, z: surfaceLocalZ }, plane), plane, size, mode)
+  const local = wallSurfaceLocal(worldToPlaneLocal(inferredAnchor, plane), mode)
+  const anchor = clampAnchorToPlaneBounds(planeLocalToWorld(local, plane), plane, size, mode)
 
   return {
     ...component,
@@ -231,10 +230,11 @@ export function clampAnchorToPlaneBoundsWithWarnings(anchor: Vec3, plane: PlaneS
   const warnings: ComponentPlacementWarning[] = []
 
   if (mode === 'wall') {
-    const x = clampOnPlaneAxis(local.x, plane.width, componentSize.x, warnings, 'width')
-    const y = clampOnPlaneAxis(local.y, plane.height, componentSize.y, warnings, 'height')
+    const surfaceLocal = wallSurfaceLocal(local, mode)
+    const x = clampOnPlaneAxis(surfaceLocal.x, plane.width, componentSize.x, warnings, 'width')
+    const y = clampOnPlaneAxis(surfaceLocal.y, plane.height, componentSize.y, warnings, 'height')
     pushBoundaryWarning(warnings, x.clamped || y.clamped)
-    return { anchor: roundVec3(planeLocalToWorld({ ...local, x: x.value, y: y.value }, plane)), warnings }
+    return { anchor: roundVec3(planeLocalToWorld({ ...surfaceLocal, x: x.value, y: y.value }, plane)), warnings }
   }
 
   const x = clampOnPlaneAxis(local.x, plane.width, componentSize.x, warnings, 'width')
@@ -249,6 +249,10 @@ function normalizePlaneSurfaceLocal(local: Vec3, surfaceAnchor: Vec3 | undefined
     ...local,
     z: worldToPlaneLocal(surfaceAnchor, plane).z,
   }
+}
+
+function wallSurfaceLocal(local: Vec3, mode: ComponentPlacementMode): Vec3 {
+  return mode === 'wall' ? { ...local, z: WALL_SURFACE_LOCAL_Z } : local
 }
 
 function clampOnPlaneAxis(value: number, planeExtent: number, componentExtent: number, warnings: ComponentPlacementWarning[], axis: 'width' | 'height' | 'depth') {
