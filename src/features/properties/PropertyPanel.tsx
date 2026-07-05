@@ -2,7 +2,8 @@ import { Check, Grid3X3, ImageIcon, Move3d, Rotate3D, Ruler, SlidersHorizontal, 
 import type { ReactNode } from 'react'
 import { useEditorStore } from '../../editor/editorStore'
 import { getComponentCatalogItem } from '../../domain/scene/componentCatalog'
-import type { ComponentPropertyValue } from '../../domain/scene/types'
+import { clampAnchorToPlaneBoundsWithWarnings } from '../../domain/scene/componentPlacement'
+import type { ComponentPlacementMode, ComponentPlacementWarning, ComponentPropertyValue, PlaneSpec, SceneComponent, Vec3 } from '../../domain/scene/types'
 import { getSelectedPlane } from '../../domain/scene/selection'
 
 export function PropertyPanel() {
@@ -104,12 +105,19 @@ export function PropertyPanel() {
         </PropertyPopover>
 
         <PropertyPopover icon={SlidersHorizontal} label="状态" title="透视与草稿状态">
-          {selectedComponent && selectedComponentCatalog ? (
-            <ComponentParamsEditor
-              params={selectedComponent.params ?? {}}
-              schema={selectedComponentCatalog.propertySchema}
-              onChange={(params) => updateComponentTransform(selectedComponent.id, { params })}
-            />
+          {selectedComponent ? (
+            <div className="component-status-stack">
+              <ComponentBindingSummary component={selectedComponent} planes={project.planes} catalogPlacement={selectedComponentCatalog?.placement} defaultSize={selectedComponentCatalog?.defaultSize} />
+              {selectedComponentCatalog ? (
+                <ComponentParamsEditor
+                  params={selectedComponent.params ?? {}}
+                  schema={selectedComponentCatalog.propertySchema}
+                  onChange={(params) => updateComponentTransform(selectedComponent.id, { params })}
+                />
+              ) : (
+                <p className="empty-text">当前组件没有专属参数</p>
+              )}
+            </div>
           ) : (
             <div className="summary-grid">
               <span>左向线</span>
@@ -215,6 +223,71 @@ function ColorEditor({ label, value, onChange }: { label: string; value: string;
       <input type="color" value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
   )
+}
+
+function ComponentBindingSummary({
+  component,
+  planes,
+  catalogPlacement,
+  defaultSize,
+}: {
+  component: SceneComponent
+  planes: PlaneSpec[]
+  catalogPlacement?: ComponentPlacementMode
+  defaultSize?: Vec3
+}) {
+  const mode = component.placement?.mode ?? catalogPlacement ?? 'free'
+  const targetPlane = component.targetPlaneId ? planes.find((plane) => plane.id === component.targetPlaneId) : undefined
+  const size = component.size ?? defaultSize ?? { x: 0.46, y: 0.28, z: 0.14 }
+  const warnings = getComponentBindingWarnings(component, targetPlane, mode, size)
+  const bindingLabel = targetPlane ? `${planeTypeLabel(targetPlane.type)} / ${targetPlane.name}` : mode === 'free' ? '自由摆放' : '未绑定'
+
+  return (
+    <div className="component-binding-summary">
+      <div className="summary-grid binding-grid">
+        <span>绑定类型</span>
+        <b>{placementModeLabel(mode)}</b>
+        <span>绑定对象</span>
+        <b>{bindingLabel}</b>
+        <span>锚点</span>
+        <b>{component.placement?.anchor ? formatVec3(component.placement.anchor) : '-'}</b>
+      </div>
+      {(warnings.length > 0 || (!targetPlane && mode !== 'free')) && (
+        <div className="placement-warning-list">
+          {!targetPlane && mode !== 'free' && <span>绑定 plane 已不存在，请重新放置组件。</span>}
+          {warnings.map((warning) => (
+            <span key={warning}>{placementWarningMessage(warning)}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function getComponentBindingWarnings(component: SceneComponent, targetPlane: PlaneSpec | undefined, mode: ComponentPlacementMode, size: Vec3) {
+  if (mode === 'free' || !targetPlane || !component.placement?.anchor) return []
+  return clampAnchorToPlaneBoundsWithWarnings(component.placement.anchor, targetPlane, size, mode).warnings
+}
+
+function placementModeLabel(mode: ComponentPlacementMode) {
+  if (mode === 'wall') return '墙面'
+  if (mode === 'floor') return '地面'
+  return '自由'
+}
+
+function planeTypeLabel(type: PlaneSpec['type']) {
+  return type === 'wall' ? '墙面' : '地面'
+}
+
+function placementWarningMessage(warning: ComponentPlacementWarning) {
+  if (warning === 'component-anchor-clamped') return '当前位置贴近边界。'
+  if (warning === 'component-width-exceeds-plane') return '组件宽度超过绑定平面。'
+  if (warning === 'component-height-exceeds-plane') return '组件高度超过绑定平面。'
+  return '组件深度超过绑定平面。'
+}
+
+function formatVec3(value: Vec3) {
+  return `${value.x.toFixed(2)}, ${value.y.toFixed(2)}, ${value.z.toFixed(2)}`
 }
 
 function ComponentParamsEditor({

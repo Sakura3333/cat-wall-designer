@@ -5,7 +5,7 @@ import { buildPerspectiveRoom } from '../domain/geometry/perspective'
 import { buildWallTemplatePlanes } from '../domain/geometry/wallTemplates'
 import { createDefaultComponentParams, getComponentCatalogItem, getComponentLabel } from '../domain/scene/componentCatalog'
 import { buildComponentPlacement, constrainComponentTransform } from '../domain/scene/componentPlacement'
-import type { ComponentPlacementHit, ComponentPlacementMode, CornerKind, CornerPoint, EditorMode, HistoryEntry, PendingComponentPlacement, PerspectiveAxis, PerspectiveGuideLine, PlaneSpec, Project, RulerPoint, SceneComponent, SceneComponentKind, SourceImage, TransformMode, Vec2, WallTemplateKind } from '../domain/scene/types'
+import type { ComponentPlacementFeedback, ComponentPlacementFeedbackReason, ComponentPlacementHit, ComponentPlacementMode, ComponentPlacementWarning, CornerKind, CornerPoint, EditorMode, HistoryEntry, PendingComponentPlacement, PerspectiveAxis, PerspectiveGuideLine, PlaneSpec, PlaneType, Project, RulerPoint, SceneComponent, SceneComponentKind, SourceImage, TransformMode, Vec2, WallTemplateKind } from '../domain/scene/types'
 
 type EditorStore = {
   project: Project
@@ -18,6 +18,7 @@ type EditorStore = {
   future: HistoryEntry[]
   geometryErrors: string[]
   pendingComponentPlacement: PendingComponentPlacement | null
+  componentPlacementFeedback: ComponentPlacementFeedback | null
   setSourceImage: (sourceImage: SourceImage) => void
   clearSourceImage: () => void
   setMode: (mode: EditorMode) => void
@@ -50,6 +51,7 @@ type EditorStore = {
   setActiveCategory: (category: string) => void
   requestComponentPlacement: (kind: SceneComponentKind, clientPoint: Vec2 | null) => void
   consumeComponentPlacement: (id: string) => void
+  clearComponentPlacementFeedback: () => void
   addComponent: (kind: SceneComponentKind, hit?: ComponentPlacementHit | null) => void
 }
 
@@ -81,6 +83,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   future: [],
   geometryErrors: [],
   pendingComponentPlacement: null,
+  componentPlacementFeedback: null,
   activePerspectiveAxis: 'left',
   setSourceImage: (sourceImage) =>
     set((state) => ({
@@ -90,6 +93,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       transformMode: 'select',
       geometryErrors: [],
       pendingComponentPlacement: null,
+      componentPlacementFeedback: null,
       history: [],
       future: [],
     })),
@@ -101,6 +105,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       transformMode: 'select',
       geometryErrors: [],
       pendingComponentPlacement: null,
+      componentPlacementFeedback: null,
       history: [],
       future: [],
     })),
@@ -323,6 +328,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       history: [],
       future: [],
       geometryErrors: [],
+      componentPlacementFeedback: null,
     })),
   buildGeometry: () => {
     const { project, selectedId, mode, geometryErrors } = get()
@@ -343,6 +349,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       mode: nextMode,
       selectedId: nextSelectedId,
       geometryErrors: result.errors,
+      componentPlacementFeedback: null,
       history: [
         ...get().history,
         {
@@ -390,6 +397,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       mode: nextMode,
       selectedId: nextSelectedId,
       geometryErrors: [],
+      componentPlacementFeedback: null,
       history: [
         ...get().history,
         {
@@ -472,9 +480,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         kind,
         clientPoint,
       },
+      componentPlacementFeedback: null,
     }),
   consumeComponentPlacement: (id) =>
     set((state) => (state.pendingComponentPlacement?.id === id ? { pendingComponentPlacement: null } : state)),
+  clearComponentPlacementFeedback: () => set({ componentPlacementFeedback: null }),
   addComponent: (kind, hit = null) =>
     set((state) => {
       const catalogItem = getComponentCatalogItem(kind)
@@ -490,11 +500,32 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         hit,
         state.project.planes,
       )
-      const targetPlaneId = placementResult.canPlace
-        ? placementResult.placement.targetPlaneId
-        : findFallbackTargetPlaneId(state.project, state.selectedId, placementMode)
-      const offset = state.project.components.length
-      const fallbackPosition = { x: (offset % 5) * 0.42 - 0.84, y: 0.25 + (offset % 2) * 0.18, z: 0.08 }
+
+      if (!placementResult.canPlace) {
+        return {
+          componentPlacementFeedback: buildPlacementFeedback({
+            project: state.project,
+            kind,
+            requestedPlacement: placementMode,
+            hit,
+            level: 'error',
+            reason: normalizePlacementFailureReason(placementResult.reason),
+            warnings: placementResult.warnings,
+          }),
+        }
+      }
+
+      const componentId = `component-${Date.now()}`
+      const placementFeedback = buildPlacementFeedback({
+        project: state.project,
+        kind,
+        requestedPlacement: placementMode,
+        hit,
+        targetPlaneId: placementResult.placement.targetPlaneId,
+        level: placementResult.warnings.length > 0 ? 'warning' : 'info',
+        reason: placementResult.warnings.length > 0 ? 'placement-adjusted' : 'placed',
+        warnings: placementResult.warnings,
+      })
 
       return {
         project: {
@@ -502,13 +533,13 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           components: [
             ...state.project.components,
             {
-              id: `component-${Date.now()}`,
+              id: componentId,
               kind,
               name: getComponentLabel(kind),
-              targetPlaneId,
-              placement: placementResult.canPlace ? placementResult.placement : buildFallbackPlacement(placementMode, targetPlaneId),
-              position: placementResult.canPlace ? placementResult.position : fallbackPosition,
-              rotation: placementResult.canPlace ? placementResult.rotation : defaultRotation,
+              targetPlaneId: placementResult.placement.targetPlaneId,
+              placement: placementResult.placement,
+              position: placementResult.position,
+              rotation: placementResult.rotation,
               scale: { x: 1, y: 1, z: 1 },
               size,
               material: { color: catalogItem?.fallbackColor },
@@ -516,7 +547,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             },
           ],
         },
+        selectedId: componentId,
         mode: 'dragging-components',
+        componentPlacementFeedback: placementFeedback,
       }
     }),
   setTransformMode: (mode) => set({ transformMode: mode }),
@@ -732,20 +765,90 @@ function pickComponentPatch(component: SceneComponent, patch: Partial<SceneCompo
   return from
 }
 
-function findFallbackTargetPlaneId(project: Project, selectedId: string | null, placementMode: ComponentPlacementMode) {
-  if (placementMode === 'free') return undefined
-
-  const selectedPlane = selectedId ? project.planes.find((plane) => plane.id === selectedId && plane.type === placementMode) : undefined
-  return selectedPlane?.id ?? project.planes.find((plane) => plane.type === placementMode)?.id
+function normalizePlacementFailureReason(reason: string): ComponentPlacementFeedbackReason {
+  if (reason === 'missing-hit' || reason === 'incompatible-surface' || reason === 'missing-plane') return reason
+  return 'missing-hit'
 }
 
-function buildFallbackPlacement(mode: ComponentPlacementMode, targetPlaneId?: string) {
-  return targetPlaneId
-    ? {
-        mode,
-        targetPlaneId,
-      }
-    : {
-        mode,
-      }
+function buildPlacementFeedback({
+  project,
+  kind,
+  requestedPlacement,
+  hit,
+  targetPlaneId,
+  level,
+  reason,
+  warnings,
+}: {
+  project: Project
+  kind: SceneComponentKind
+  requestedPlacement: ComponentPlacementMode
+  hit: ComponentPlacementHit | null
+  targetPlaneId?: string
+  level: ComponentPlacementFeedback['level']
+  reason: ComponentPlacementFeedbackReason
+  warnings: ComponentPlacementWarning[]
+}): ComponentPlacementFeedback {
+  const componentLabel = getComponentLabel(kind)
+  const requestedLabel = placementModeLabel(requestedPlacement)
+  const hitLabel = hit ? planeTypeLabel(hit.planeType) : undefined
+  const targetPlane = targetPlaneId ? project.planes.find((plane) => plane.id === targetPlaneId) : undefined
+  const targetLabel = targetPlane?.name ?? targetPlaneId
+  const details = buildPlacementDetails(reason, requestedLabel, hitLabel, targetLabel, warnings)
+
+  return {
+    id: `component-placement-feedback-${Date.now()}`,
+    level,
+    reason,
+    componentKind: kind,
+    requestedPlacement,
+    hitPlaneType: hit?.planeType,
+    targetPlaneId,
+    warnings,
+    title: placementFeedbackTitle(level),
+    message: placementFeedbackMessage(reason, componentLabel, requestedLabel, hitLabel, targetLabel),
+    details: details.length > 0 ? details : undefined,
+  }
+}
+
+function placementFeedbackTitle(level: ComponentPlacementFeedback['level']) {
+  if (level === 'error') return '无法放置组件'
+  if (level === 'warning') return '位置已调整'
+  return '组件已放置'
+}
+
+function placementFeedbackMessage(reason: ComponentPlacementFeedbackReason, componentLabel: string, requestedLabel: string, hitLabel?: string, targetLabel?: string) {
+  if (reason === 'missing-hit') return `${componentLabel} 没有命中可放置的模型表面，未创建组件。`
+  if (reason === 'incompatible-surface') return `${componentLabel} 需要放在${requestedLabel}，当前命中的是${hitLabel ?? '不支持的表面'}，未创建组件。`
+  if (reason === 'missing-plane') return `${componentLabel} 命中的 plane 不在当前场景中，未创建组件。`
+  if (reason === 'placement-adjusted') return `${componentLabel} 已放置到${targetLabel ?? requestedLabel}，并按边界自动调整。`
+  return `${componentLabel} 已放置到${targetLabel ?? requestedLabel}。`
+}
+
+function buildPlacementDetails(reason: ComponentPlacementFeedbackReason, requestedLabel: string, hitLabel: string | undefined, targetLabel: string | undefined, warnings: ComponentPlacementWarning[]) {
+  const details: string[] = []
+  if (targetLabel) details.push(`绑定对象：${targetLabel}`)
+  if (reason === 'incompatible-surface') {
+    details.push(`需要：${requestedLabel}`)
+    if (hitLabel) details.push(`命中：${hitLabel}`)
+  }
+  details.push(...warnings.map(placementWarningMessage))
+  return details
+}
+
+function placementWarningMessage(warning: ComponentPlacementWarning) {
+  if (warning === 'component-anchor-clamped') return '落点超出可用边界，已贴到最近的有效位置。'
+  if (warning === 'component-width-exceeds-plane') return '组件宽度超过绑定平面，请缩小组件或放大平面。'
+  if (warning === 'component-height-exceeds-plane') return '组件高度超过绑定平面，请缩小组件或放大平面。'
+  return '组件深度超过绑定平面，请缩小组件或放大平面。'
+}
+
+function placementModeLabel(mode: ComponentPlacementMode) {
+  if (mode === 'wall') return '墙面'
+  if (mode === 'floor') return '地面'
+  return '自由空间'
+}
+
+function planeTypeLabel(type: PlaneType) {
+  return type === 'wall' ? '墙面' : '地面'
 }

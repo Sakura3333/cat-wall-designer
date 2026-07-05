@@ -637,6 +637,77 @@ button {
   color: #8a3930;
 }
 
+.placement-feedback-strip {
+  position: absolute;
+  z-index: 6;
+  left: 300px;
+  right: 310px;
+  top: 104px;
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: 1fr 34px;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px 9px 14px;
+  border: 2px solid rgba(73, 65, 55, 0.72);
+  border-radius: 18px;
+  background: rgba(255, 250, 242, 0.96);
+  box-shadow: 6px 6px 0 rgba(60, 50, 38, 0.07);
+  color: var(--ink);
+}
+
+.placement-feedback-strip.warning {
+  background: rgba(255, 247, 229, 0.97);
+  color: #79511d;
+}
+
+.placement-feedback-strip.error {
+  background: rgba(255, 245, 239, 0.97);
+  color: #8a3930;
+}
+
+.placement-feedback-strip > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.placement-feedback-strip strong {
+  font-size: 14px;
+}
+
+.placement-feedback-strip span {
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+
+.placement-feedback-strip small {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.placement-feedback-strip small b {
+  padding: 2px 7px;
+  border: 1px solid rgba(73, 65, 55, 0.24);
+  border-radius: 999px;
+  background: rgba(255, 253, 248, 0.72);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.placement-feedback-strip button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgba(73, 65, 55, 0.5);
+  border-radius: 12px;
+  background: #fffdf8;
+  color: inherit;
+  cursor: pointer;
+}
+
 .floating-panel {
   position: absolute;
   z-index: 5;
@@ -1165,6 +1236,45 @@ button {
 
 .summary-grid b {
   color: var(--ink);
+}
+
+.component-status-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.component-binding-summary {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border: 2px solid rgba(73, 65, 55, 0.18);
+  border-radius: 14px;
+  background: rgba(255, 253, 248, 0.66);
+}
+
+.binding-grid {
+  gap: 7px 10px;
+}
+
+.binding-grid b {
+  max-width: 178px;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.placement-warning-list {
+  display: grid;
+  gap: 5px;
+}
+
+.placement-warning-list span {
+  padding: 5px 7px;
+  border: 1px solid rgba(138, 57, 48, 0.24);
+  border-radius: 10px;
+  background: rgba(255, 245, 239, 0.72);
+  color: #8a3930;
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .component-panel {
@@ -1960,6 +2070,11 @@ button {
     right: 330px;
   }
 
+  .placement-feedback-strip {
+    left: 220px;
+    right: 330px;
+  }
+
   .annotation-layer {
     inset: 104px 334px 235px 220px;
   }
@@ -2137,5 +2252,11 @@ button {
     left: 16px;
     right: 16px;
     top: 72px;
+  }
+
+  .placement-feedback-strip {
+    left: 16px;
+    right: 16px;
+    top: 138px;
   }
 }

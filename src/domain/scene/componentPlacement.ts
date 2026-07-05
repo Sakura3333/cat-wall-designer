@@ -1,9 +1,7 @@
 import type { ComponentCatalogItem } from './componentCatalog'
-import type { ComponentPlacement, ComponentPlacementHit, ComponentPlacementMode, PlaneSpec, SceneComponent, Vec3 } from './types'
+import type { ComponentPlacement, ComponentPlacementHit, ComponentPlacementMode, ComponentPlacementWarning, PlaneSpec, SceneComponent, Vec3 } from './types'
 
 export type ComponentPlacementSpec = Pick<ComponentCatalogItem, 'placement' | 'defaultSize' | 'defaultRotation'>
-
-export type ComponentPlacementWarning = 'component-width-exceeds-plane' | 'component-height-exceeds-plane' | 'component-depth-exceeds-plane'
 
 export type ComponentPlacementResult =
   | {
@@ -172,12 +170,14 @@ export function clampAnchorToPlaneBoundsWithWarnings(anchor: Vec3, plane: PlaneS
   if (mode === 'wall') {
     const x = clampOnPlaneAxis(local.x, plane.width, componentSize.x, warnings, 'width')
     const y = clampOnPlaneAxis(local.y, plane.height, componentSize.y, warnings, 'height')
-    return { anchor: roundVec3(planeLocalToWorld({ ...local, x, y }, plane)), warnings }
+    pushBoundaryWarning(warnings, x.clamped || y.clamped)
+    return { anchor: roundVec3(planeLocalToWorld({ ...local, x: x.value, y: y.value }, plane)), warnings }
   }
 
   const x = clampOnPlaneAxis(local.x, plane.width, componentSize.x, warnings, 'width')
   const y = clampOnPlaneAxis(local.y, plane.height, componentSize.z, warnings, 'depth')
-  return { anchor: roundVec3(planeLocalToWorld({ ...local, x, y }, plane)), warnings }
+  pushBoundaryWarning(warnings, x.clamped || y.clamped)
+  return { anchor: roundVec3(planeLocalToWorld({ ...local, x: x.value, y: y.value }, plane)), warnings }
 }
 
 function normalizePlaneSurfaceLocal(local: Vec3, surfaceAnchor: Vec3 | undefined, plane: PlaneSpec): Vec3 {
@@ -193,9 +193,14 @@ function clampOnPlaneAxis(value: number, planeExtent: number, componentExtent: n
   const max = planeExtent / 2 - componentExtent / 2
   if (min > max) {
     warnings.push(`component-${axis}-exceeds-plane`)
-    return 0
+    return { value: 0, clamped: false }
   }
-  return Math.min(max, Math.max(min, value))
+  const clamped = value < min || value > max
+  return { value: Math.min(max, Math.max(min, value)), clamped }
+}
+
+function pushBoundaryWarning(warnings: ComponentPlacementWarning[], clamped: boolean) {
+  if (clamped && !warnings.includes('component-anchor-clamped')) warnings.push('component-anchor-clamped')
 }
 
 function placementRotation(plane: PlaneSpec, spec: ComponentPlacementSpec): Vec3 {

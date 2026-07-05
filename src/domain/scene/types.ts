@@ -82,6 +82,26 @@ export type SceneComponentKind = string
 
 export type ComponentPlacementMode = 'wall' | 'floor' | 'free'
 
+export type ComponentPlacementWarning = 'component-anchor-clamped' | 'component-width-exceeds-plane' | 'component-height-exceeds-plane' | 'component-depth-exceeds-plane'
+
+export type ComponentPlacementFeedbackLevel = 'info' | 'warning' | 'error'
+
+export type ComponentPlacementFeedbackReason = 'placed' | 'placement-adjusted' | 'missing-hit' | 'incompatible-surface' | 'missing-plane'
+
+export type ComponentPlacementFeedback = {
+  id: string
+  level: ComponentPlacementFeedbackLevel
+  reason: ComponentPlacementFeedbackReason
+  componentKind: SceneComponentKind
+  requestedPlacement: ComponentPlacementMode
+  hitPlaneType?: PlaneType
+  targetPlaneId?: string
+  warnings: ComponentPlacementWarning[]
+  title: string
+  message: string
+  details?: string[]
+}
+
 export type ComponentPlacement = {
   mode: ComponentPlacementMode
   targetPlaneId?: string

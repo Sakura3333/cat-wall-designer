@@ -66,6 +66,7 @@ describe('editorStore component placement requests', () => {
       history: [],
       future: [],
       geometryErrors: [],
+      componentPlacementFeedback: null,
     })
   })
 
@@ -180,7 +181,7 @@ describe('editorStore component placement requests', () => {
     })
   })
 
-  it('falls back instead of storing a mismatched hit', () => {
+  it('rejects mismatched hits and reports placement feedback', () => {
     useEditorStore.getState().addComponent('cat-shelf', {
       planeId: 'floor-1',
       planeType: 'floor',
@@ -189,13 +190,58 @@ describe('editorStore component placement requests', () => {
       surface: 'top',
     })
 
-    const component = useEditorStore.getState().project.components[0]
-    expect(component.targetPlaneId).toBe('wall-1')
-    expect(component.position).toEqual({ x: -0.84, y: 0.25, z: 0.08 })
-    expect(component.placement).toEqual({
-      mode: 'wall',
-      targetPlaneId: 'wall-1',
+    const state = useEditorStore.getState()
+    expect(state.project.components).toHaveLength(0)
+    expect(state.componentPlacementFeedback).toMatchObject({
+      level: 'error',
+      reason: 'incompatible-surface',
+      componentKind: 'cat-shelf',
+      requestedPlacement: 'wall',
+      hitPlaneType: 'floor',
     })
+  })
+
+  it('reports feedback when a drop is clamped to target bounds', () => {
+    useEditorStore.getState().addComponent('cat-shelf', {
+      planeId: 'wall-1',
+      planeType: 'wall',
+      point: { x: 2, y: 3, z: 0.02 },
+      normal: { x: 0, y: 0, z: 1 },
+      surface: 'front',
+    })
+
+    const state = useEditorStore.getState()
+    expect(state.project.components).toHaveLength(1)
+    expect(state.componentPlacementFeedback).toMatchObject({
+      level: 'warning',
+      reason: 'placement-adjusted',
+      targetPlaneId: 'wall-1',
+      warnings: ['component-anchor-clamped'],
+    })
+  })
+
+  it('reports oversized placement feedback while still creating the component', () => {
+    useEditorStore.setState((state) => ({
+      project: {
+        ...state.project,
+        planes: state.project.planes.map((plane) => (plane.id === 'wall-1' ? { ...plane, width: 0.3, height: 0.2 } : plane)),
+      },
+    }))
+
+    useEditorStore.getState().addComponent('cat-shelf', {
+      planeId: 'wall-1',
+      planeType: 'wall',
+      point: { x: 0, y: 1.2, z: 0.02 },
+      normal: { x: 0, y: 0, z: 1 },
+      surface: 'front',
+    })
+
+    const state = useEditorStore.getState()
+    expect(state.project.components).toHaveLength(1)
+    expect(state.componentPlacementFeedback?.warnings).toEqual(['component-width-exceeds-plane', 'component-height-exceeds-plane'])
+
+    useEditorStore.getState().clearComponentPlacementFeedback()
+    expect(useEditorStore.getState().componentPlacementFeedback).toBeNull()
   })
 
   it('constrains wall component transform commits and preserves placement history', () => {

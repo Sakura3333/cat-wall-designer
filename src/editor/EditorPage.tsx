@@ -1,6 +1,6 @@
 import { DndContext, DragEndEvent, useDroppable } from '@dnd-kit/core'
-import { PanelsTopLeft, Trash2, WandSparkles } from 'lucide-react'
-import type { SceneComponentKind } from '../domain/scene/types'
+import { PanelsTopLeft, Trash2, WandSparkles, X } from 'lucide-react'
+import type { ComponentPlacementFeedback, SceneComponentKind } from '../domain/scene/types'
 import { wallTemplates } from '../domain/scene/wallTemplates'
 import { AnnotationLayer } from '../features/annotation/AnnotationLayer'
 import { ComponentPalette } from '../features/component-palette/ComponentPalette'
@@ -48,6 +48,8 @@ function SceneWorkspace() {
   const clearSourceImage = useEditorStore((state) => state.clearSourceImage)
   const applyWallTemplate = useEditorStore((state) => state.applyWallTemplate)
   const geometryErrors = useEditorStore((state) => state.geometryErrors)
+  const componentPlacementFeedback = useEditorStore((state) => state.componentPlacementFeedback)
+  const clearComponentPlacementFeedback = useEditorStore((state) => state.clearComponentPlacementFeedback)
   const hasGeometry = project.planes.length > 0
   const hasImage = Boolean(project.sourceImage)
   const guideCounts = {
@@ -110,11 +112,33 @@ function SceneWorkspace() {
             ))}
           </div>
         )}
+        {componentPlacementFeedback && <PlacementFeedbackStrip feedback={componentPlacementFeedback} onClose={clearComponentPlacementFeedback} />}
         {(hasImage || hasGeometry) && <Toolbar compact={hasGeometry} />}
         <PropertyPanel />
         <ComponentPalette />
         <ShortcutBar />
       </div>
     </section>
+  )
+}
+
+function PlacementFeedbackStrip({ feedback, onClose }: { feedback: ComponentPlacementFeedback; onClose: () => void }) {
+  return (
+    <div className={`placement-feedback-strip ${feedback.level}`} role={feedback.level === 'error' ? 'alert' : 'status'} aria-live="polite">
+      <div>
+        <strong>{feedback.title}</strong>
+        <span>{feedback.message}</span>
+        {feedback.details && (
+          <small>
+            {feedback.details.map((detail) => (
+              <b key={detail}>{detail}</b>
+            ))}
+          </small>
+        )}
+      </div>
+      <button type="button" aria-label="关闭放置提示" title="关闭放置提示" onClick={onClose}>
+        <X size={16} />
+      </button>
+    </div>
   )
 }
