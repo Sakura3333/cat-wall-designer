@@ -3,7 +3,7 @@ import { getComponentCatalogItem } from '../../domain/scene/componentCatalog'
 import { constrainComponentTransform } from '../../domain/scene/componentPlacement'
 import type { PlaneSpec, SceneComponent, Vec3 } from '../../domain/scene/types'
 
-export function applyConstrainedComponentTransformPreview(object: Pick<Object3D, 'position' | 'rotation' | 'updateMatrixWorld'>, component: SceneComponent, planes: PlaneSpec[]) {
+export function applyConstrainedComponentTransformPreview(object: Pick<Object3D, 'position' | 'rotation' | 'updateMatrixWorld'>, component: SceneComponent, planes: PlaneSpec[]): SceneComponent {
   const catalogItem = getComponentCatalogItem(component.kind)
   const patch = constrainComponentTransform(
     component,
@@ -27,6 +27,10 @@ export function applyConstrainedComponentTransformPreview(object: Pick<Object3D,
   }
 
   object.updateMatrixWorld()
+  return {
+    ...component,
+    ...patch,
+  }
 }
 
 function toVec3(vector: Vector3 | Euler): Vec3 {

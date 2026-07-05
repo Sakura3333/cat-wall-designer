@@ -62,6 +62,30 @@ describe('applyConstrainedComponentTransformPreview', () => {
     expect(toPlainVec3(object.rotation)).toEqual({ x: 0, y: 1.570796, z: 0 })
   })
 
+  it('uses the latest preview attachment when repeatedly moving between walls', () => {
+    const object = new Object3D()
+    let previewComponent = wallComponent()
+
+    object.position.set(2, 1.4, -0.4)
+    object.rotation.set(0, 0, 0)
+    previewComponent = applyConstrainedComponentTransformPreview(object, previewComponent, [wallPlane, sideWallPlane])
+
+    expect(previewComponent.targetPlaneId).toBe('wall-side')
+    expect(toPlainVec3(object.rotation)).toEqual({ x: 0, y: 1.570796, z: 0 })
+
+    object.position.set(0.4, 1.4, 0.2)
+    previewComponent = applyConstrainedComponentTransformPreview(object, previewComponent, [wallPlane, sideWallPlane])
+
+    expect(previewComponent.targetPlaneId).toBe('wall-1')
+    expect(previewComponent.placement).toMatchObject({
+      mode: 'wall',
+      targetPlaneId: 'wall-1',
+      normal: { x: 0, y: 0, z: 1 },
+    })
+    expect(toPlainVec3(object.position)).toEqual({ x: 0.4, y: 1.4, z: 0.11 })
+    expect(toPlainVec3(object.rotation)).toEqual({ x: 0, y: 0, z: 0 })
+  })
+
   it('projects floor component preview movement back to the floor immediately', () => {
     const object = new Object3D()
     object.position.set(2, 3, -1)

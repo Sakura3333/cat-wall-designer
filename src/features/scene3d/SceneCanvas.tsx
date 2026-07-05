@@ -20,6 +20,7 @@ export function SceneCanvas() {
   const selectedComponent = project.components.find((component) => component.id === selectedId) ?? null
   const [selectedObject, setSelectedObject] = useState<Mesh | null>(null)
   const sceneGroupRef = useRef<Group>(null)
+  const previewComponentRef = useRef<SceneComponent | null>(null)
   const camera = project.sceneCamera
   const cameraConfig = camera
     ? {
@@ -37,6 +38,7 @@ export function SceneCanvas() {
       }
 
   useEffect(() => {
+    previewComponentRef.current = null
     if (!selectedId) setSelectedObject(null)
   }, [selectedId])
 
@@ -52,11 +54,13 @@ export function SceneCanvas() {
     } else if (selectedComponent) {
       updateComponentTransform(selectedComponent.id, patch)
     }
+    previewComponentRef.current = null
   }
 
   function constrainSelectedComponentPreview() {
     if (!selectedObject || !selectedComponent) return
-    applyConstrainedComponentTransformPreview(selectedObject, selectedComponent, project.planes)
+    const previewComponent = previewComponentRef.current?.id === selectedComponent.id ? previewComponentRef.current : selectedComponent
+    previewComponentRef.current = applyConstrainedComponentTransformPreview(selectedObject, previewComponent, project.planes)
   }
 
   return (
