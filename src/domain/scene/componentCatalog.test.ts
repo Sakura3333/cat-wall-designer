@@ -19,6 +19,8 @@ describe('normalizeCatalogItem', () => {
         defaultSize: { x: Number.NaN, y: 0.5, z: 0.2 },
         defaultRotation: { x: 0, y: Number.POSITIVE_INFINITY, z: 0.25 },
         fallbackColor: '',
+        assetKey: ' cat-shelf-placeholder ',
+        assetUrl: 'https://example.com/model.obj',
         purchaseUrls: undefined,
         referencePrice: '299',
         propertySchema: [{ id: ' accentColor ', label: ' ', type: 'color', defaultValue: '#f8efe1' }],
@@ -36,6 +38,8 @@ describe('normalizeCatalogItem', () => {
       defaultSize: { x: 0.46, y: 0.5, z: 0.2 },
       defaultRotation: { x: 0, y: 0, z: 0.25 },
       fallbackColor: '#dbe7df',
+      assetKey: 'wall-two-step-ladder',
+      assetUrl: undefined,
       purchaseUrls: [],
       referencePrice: 299,
     })

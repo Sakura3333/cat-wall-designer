@@ -1,8 +1,10 @@
 import { Edges, OrbitControls, TransformControls } from '@react-three/drei'
 import { Canvas, useLoader, useThree } from '@react-three/fiber'
-import { forwardRef, Suspense, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { BufferGeometry, Camera, CanvasTexture, Float32BufferAttribute, Group, Mesh, MOUSE, Object3D, Quaternion, Raycaster, TextureLoader, Vector2, Vector3 } from 'three'
+import { Component, forwardRef, Suspense, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { Box3, BufferGeometry, Camera, CanvasTexture, Float32BufferAttribute, Group, Mesh, MOUSE, Object3D, Quaternion, Raycaster, TextureLoader, Vector2, Vector3 } from 'three'
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { useEditorStore } from '../../editor/editorStore'
+import { resolveComponentAssetSource } from '../../domain/scene/componentAssets'
 import { getComponentCatalogItem } from '../../domain/scene/componentCatalog'
 import type { ComponentPlacementHit, ComponentPlacementSurface, PlaneSpec, PlaneType, PolygonSpec, SceneComponent, Vec2 } from '../../domain/scene/types'
 import { applyConstrainedComponentTransformPreview } from './componentTransformPreview'
@@ -18,7 +20,7 @@ export function SceneCanvas() {
   const polygonsById = useMemo(() => new Map(project.polygons.map((polygon) => [polygon.id, polygon])), [project.polygons])
   const selectedPlane = project.planes.find((plane) => plane.id === selectedId) ?? null
   const selectedComponent = project.components.find((component) => component.id === selectedId) ?? null
-  const [selectedObject, setSelectedObject] = useState<Mesh | null>(null)
+  const [selectedObject, setSelectedObject] = useState<Object3D | null>(null)
   const sceneGroupRef = useRef<Group>(null)
   const previewComponentRef = useRef<SceneComponent | null>(null)
   const camera = project.sceneCamera
@@ -359,14 +361,15 @@ type ComponentMeshProps = {
   onSelect: () => void
 }
 
-const ComponentMesh = forwardRef<Mesh, ComponentMeshProps>(function ComponentMesh({ component, selected, onSelect }, ref) {
+const ComponentMesh = forwardRef<Group, ComponentMeshProps>(function ComponentMesh({ component, selected, onSelect }, ref) {
   const catalogItem = getComponentCatalogItem(component.kind)
   const size = component.size ?? catalogItem?.defaultSize ?? { x: 0.46, y: component.kind === 'curtain' ? 0.86 : 0.28, z: 0.14 }
   const scale = component.scale ?? { x: 1, y: 1, z: 1 }
   const color = component.material?.color ?? catalogItem?.fallbackColor ?? '#dbe7df'
+  const assetSource = resolveComponentAssetSource(catalogItem?.assetKey, catalogItem?.assetUrl)
 
   return (
-    <mesh
+    <group
       ref={ref}
       position={[component.position.x, component.position.y, component.position.z]}
       rotation={[component.rotation.x, component.rotation.y, component.rotation.z]}
@@ -376,9 +379,106 @@ const ComponentMesh = forwardRef<Mesh, ComponentMeshProps>(function ComponentMes
         onSelect()
       }}
     >
-      <boxGeometry args={[size.x, size.y, size.z]} />
-      <meshStandardMaterial color={color} roughness={0.75} />
+      {assetSource ? (
+        <ComponentAssetErrorBoundary fallback={<ComponentFallbackBox size={size} color={color} selected={selected} />} resetKey={assetSource.url}>
+          <Suspense fallback={<ComponentFallbackBox size={size} color={color} selected={selected} muted />}>
+            <ComponentGltfAsset url={assetSource.url} size={size} selected={selected} />
+          </Suspense>
+        </ComponentAssetErrorBoundary>
+      ) : (
+        <ComponentFallbackBox size={size} color={color} selected={selected} />
+      )}
+    </group>
+  )
+})
+
+function ComponentFallbackBox({ size, color, selected, muted = false }: { size: SceneComponent['size']; color: string; selected: boolean; muted?: boolean }) {
+  const safeSize = size ?? { x: 0.46, y: 0.28, z: 0.14 }
+  return (
+    <mesh>
+      <boxGeometry args={[safeSize.x, safeSize.y, safeSize.z]} />
+      <meshStandardMaterial color={color} roughness={0.75} transparent={muted} opacity={muted ? 0.42 : 1} />
       <Edges color={selected ? '#d96d5f' : '#332d26'} linewidth={selected ? 3 : 1.6} />
     </mesh>
   )
-})
+}
+
+function ComponentGltfAsset({ url, size, selected }: { url: string; size: NonNullable<SceneComponent['size']>; selected: boolean }) {
+  const gltf = useLoader(GLTFLoader, url)
+  const { scene, offset, scale } = useMemo(() => normalizeGltfScene(gltf.scene, size), [gltf.scene, size])
+
+  return (
+    <>
+      <primitive object={scene} position={[offset.x, offset.y, offset.z]} scale={[scale.x, scale.y, scale.z]} />
+      {selected && <ComponentSelectionBounds size={size} />}
+    </>
+  )
+}
+
+function normalizeGltfScene(sourceScene: Object3D, size: NonNullable<SceneComponent['size']>) {
+  const scene = sourceScene.clone(true)
+  scene.traverse((object) => {
+    if (object instanceof Mesh) {
+      object.castShadow = true
+      object.receiveShadow = true
+    }
+  })
+
+  const box = new Box3().setFromObject(scene)
+  const modelSize = box.getSize(new Vector3())
+  const center = box.getCenter(new Vector3())
+  const scale = {
+    x: safeScale(size.x, modelSize.x),
+    y: safeScale(size.y, modelSize.y),
+    z: safeScale(size.z, modelSize.z),
+  }
+
+  return {
+    scene,
+    scale,
+    offset: {
+      x: -center.x * scale.x,
+      y: -center.y * scale.y,
+      z: -center.z * scale.z,
+    },
+  }
+}
+
+function safeScale(target: number, source: number) {
+  if (!Number.isFinite(target) || !Number.isFinite(source) || Math.abs(source) < 0.000001) return 1
+  return target / source
+}
+
+function ComponentSelectionBounds({ size }: { size: NonNullable<SceneComponent['size']> }) {
+  return (
+    <mesh>
+      <boxGeometry args={[size.x, size.y, size.z]} />
+      <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      <Edges color="#d96d5f" linewidth={3} />
+    </mesh>
+  )
+}
+
+type ComponentAssetErrorBoundaryProps = {
+  children: ReactNode
+  fallback: ReactNode
+  resetKey: string
+}
+
+class ComponentAssetErrorBoundary extends Component<ComponentAssetErrorBoundaryProps, { hasError: boolean }> {
+  state = { hasError: false }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidUpdate(previousProps: ComponentAssetErrorBoundaryProps) {
+    if (previousProps.resetKey !== this.props.resetKey && this.state.hasError) {
+      this.setState({ hasError: false })
+    }
+  }
+
+  render() {
+    return this.state.hasError ? this.props.fallback : this.props.children
+  }
+}

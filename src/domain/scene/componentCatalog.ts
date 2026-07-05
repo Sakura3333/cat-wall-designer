@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ComponentPlacementMode, ComponentPropertySchema, ComponentPropertyValue, SceneComponentKind, Vec3 } from './types'
+import { normalizeComponentAssetKey, normalizeComponentAssetUrl } from './componentAssets'
 
 export type ComponentPlacementGroup = {
   id: ComponentPlacementMode
@@ -61,7 +62,7 @@ export const defaultComponentCatalog: ComponentCatalogItem[] = [
     defaultSize: { x: 0.72, y: 0.34, z: 0.18 },
     defaultRotation: { x: 0, y: 0, z: 0 },
     fallbackColor: '#e7c49e',
-    assetKey: 'cat-shelf-placeholder',
+    assetKey: 'wall-two-step-ladder',
     purchaseUrls: [],
     referencePrice: 299,
     propertySchema: [
@@ -79,7 +80,6 @@ export const defaultComponentCatalog: ComponentCatalogItem[] = [
     defaultSize: { x: 0.52, y: 0.36, z: 0.08 },
     defaultRotation: { x: 0, y: 0, z: 0 },
     fallbackColor: '#dbe7df',
-    assetKey: 'painting-placeholder',
     purchaseUrls: [],
     referencePrice: 59,
     propertySchema: [
@@ -97,7 +97,6 @@ export const defaultComponentCatalog: ComponentCatalogItem[] = [
     defaultSize: { x: 0.62, y: 0.24, z: 0.48 },
     defaultRotation: { x: 0, y: 0, z: 0 },
     fallbackColor: '#dcd5e9',
-    assetKey: 'cat-bed-placeholder',
     purchaseUrls: [],
     referencePrice: 129,
     propertySchema: [
@@ -115,7 +114,6 @@ export const defaultComponentCatalog: ComponentCatalogItem[] = [
     defaultSize: { x: 0.58, y: 0.92, z: 0.12 },
     defaultRotation: { x: 0, y: 0, z: 0 },
     fallbackColor: '#f2e1cf',
-    assetKey: 'curtain-placeholder',
     purchaseUrls: [],
     referencePrice: 89,
     propertySchema: [
@@ -133,7 +131,6 @@ export const defaultComponentCatalog: ComponentCatalogItem[] = [
     defaultSize: { x: 0.34, y: 0.16, z: 0.34 },
     defaultRotation: { x: 0, y: 0, z: 0 },
     fallbackColor: '#d7e4ea',
-    assetKey: 'bowl-placeholder',
     purchaseUrls: [],
     referencePrice: 39,
     propertySchema: [
@@ -260,6 +257,8 @@ export function normalizeCatalogItem(component: ComponentCatalogItem, subcategor
     defaultSize: normalizeVec3(component.defaultSize, { x: 0.46, y: 0.28, z: 0.14 }),
     defaultRotation: normalizeVec3(component.defaultRotation, { x: 0, y: 0, z: 0 }),
     fallbackColor: component.fallbackColor || '#dbe7df',
+    assetKey: normalizeComponentAssetKey(component.assetKey),
+    assetUrl: normalizeComponentAssetUrl(component.assetUrl),
     purchaseUrls: normalizeUrlList(component.purchaseUrls),
     referencePrice: normalizeOptionalNumber(component.referencePrice),
     propertySchema: component.propertySchema.map((property) => ({
