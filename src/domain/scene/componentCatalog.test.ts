@@ -35,7 +35,7 @@ describe('normalizeCatalogItem', () => {
       icon: 'boxes',
       placement: 'floor',
       subcategoryId: undefined,
-      defaultSize: { x: 0.46, y: 0.5, z: 0.2 },
+      defaultSize: { x: 0.2833, y: 0.4662, z: 0.2166 },
       defaultRotation: { x: 0, y: 0, z: 0.25 },
       fallbackColor: '#dbe7df',
       assetKey: 'wall-two-step-ladder',

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { ComponentPlacementMode, ComponentPropertySchema, ComponentPropertyValue, SceneComponentKind, Vec3 } from './types'
-import { normalizeComponentAssetKey, normalizeComponentAssetUrl } from './componentAssets'
+import { normalizeComponentAssetKey, normalizeComponentAssetUrl, resolveComponentAssetSize } from './componentAssets'
 
 export type ComponentPlacementGroup = {
   id: ComponentPlacementMode
@@ -59,7 +59,7 @@ export const defaultComponentCatalog: ComponentCatalogItem[] = [
     icon: 'boxes',
     placement: 'wall',
     subcategoryId: 'wall-climb',
-    defaultSize: { x: 0.72, y: 0.34, z: 0.18 },
+    defaultSize: { x: 0.2833, y: 0.4662, z: 0.2166 },
     defaultRotation: { x: 0, y: 0, z: 0 },
     fallbackColor: '#e7c49e',
     assetKey: 'wall-two-step-ladder',
@@ -245,6 +245,9 @@ export function createDefaultComponentParams(kind: SceneComponentKind): Record<s
 export function normalizeCatalogItem(component: ComponentCatalogItem, subcategories: ComponentSubcategory[] = defaultComponentSubcategories): ComponentCatalogItem {
   const placement = normalizePlacement(component.placement)
   const subcategory = subcategories.find((item) => item.id === component.subcategoryId && item.placement === placement)
+  const assetKey = normalizeComponentAssetKey(component.assetKey)
+  const assetUrl = normalizeComponentAssetUrl(component.assetUrl)
+  const defaultSize = resolveComponentAssetSize(normalizeVec3(component.defaultSize, { x: 0.46, y: 0.28, z: 0.14 }), assetKey, assetUrl)
 
   return {
     ...component,
@@ -254,11 +257,11 @@ export function normalizeCatalogItem(component: ComponentCatalogItem, subcategor
     icon: component.icon.trim() || 'boxes',
     placement,
     subcategoryId: subcategory?.id,
-    defaultSize: normalizeVec3(component.defaultSize, { x: 0.46, y: 0.28, z: 0.14 }),
+    defaultSize,
     defaultRotation: normalizeVec3(component.defaultRotation, { x: 0, y: 0, z: 0 }),
     fallbackColor: component.fallbackColor || '#dbe7df',
-    assetKey: normalizeComponentAssetKey(component.assetKey),
-    assetUrl: normalizeComponentAssetUrl(component.assetUrl),
+    assetKey,
+    assetUrl,
     purchaseUrls: normalizeUrlList(component.purchaseUrls),
     referencePrice: normalizeOptionalNumber(component.referencePrice),
     propertySchema: component.propertySchema.map((property) => ({

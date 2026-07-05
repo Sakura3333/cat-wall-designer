@@ -97,7 +97,8 @@ describe('editorStore component placement requests', () => {
 
     const component = useEditorStore.getState().project.components[0]
     expect(component.targetPlaneId).toBe('wall-1')
-    expect(component.position).toEqual({ x: 0.4, y: 1.3, z: 0.11 })
+    expect(component.position).toEqual({ x: 0.4, y: 1.3, z: 0.1283 })
+    expect(component.size).toEqual({ x: 0.2833, y: 0.4662, z: 0.2166 })
     expect(component.placement).toMatchObject({
       mode: 'wall',
       targetPlaneId: 'wall-1',
@@ -136,11 +137,11 @@ describe('editorStore component placement requests', () => {
     })
 
     const component = useEditorStore.getState().project.components[0]
-    expect(component.position).toEqual({ x: 1.14, y: 2.23, z: 0.11 })
+    expect(component.position).toEqual({ x: 1.35835, y: 2.1669, z: 0.1283 })
     expect(component.placement).toMatchObject({
       mode: 'wall',
       targetPlaneId: 'wall-1',
-      anchor: { x: 1.14, y: 2.23, z: 0.02 },
+      anchor: { x: 1.35835, y: 2.1669, z: 0.02 },
     })
   })
 
@@ -224,7 +225,7 @@ describe('editorStore component placement requests', () => {
     useEditorStore.setState((state) => ({
       project: {
         ...state.project,
-        planes: state.project.planes.map((plane) => (plane.id === 'wall-1' ? { ...plane, width: 0.3, height: 0.2 } : plane)),
+        planes: state.project.planes.map((plane) => (plane.id === 'wall-1' ? { ...plane, width: 0.2, height: 0.2 } : plane)),
       },
     }))
 
@@ -259,11 +260,11 @@ describe('editorStore component placement requests', () => {
     })
 
     const updated = useEditorStore.getState().project.components[0]
-    expect(updated.position).toEqual({ x: 1.14, y: 2.23, z: 0.11 })
+    expect(updated.position).toEqual({ x: 1.35835, y: 2.1669, z: 0.1283 })
     expect(updated.placement).toMatchObject({
       mode: 'wall',
       targetPlaneId: 'wall-1',
-      anchor: { x: 1.14, y: 2.23, z: 0.02 },
+      anchor: { x: 1.35835, y: 2.1669, z: 0.02 },
     })
 
     useEditorStore.getState().undo()
@@ -299,7 +300,7 @@ describe('editorStore component placement requests', () => {
 
     const updated = useEditorStore.getState().project.components[0]
     expect(updated.targetPlaneId).toBe('wall-side')
-    expect(updated.position).toEqual({ x: 1.61, y: 1.4, z: -0.4 })
+    expect(updated.position).toEqual({ x: 1.6283, y: 1.4, z: -0.4 })
     expect(updated.rotation).toEqual({ x: 0, y: 1.570796, z: 0 })
     expect(updated.placement).toMatchObject({
       mode: 'wall',

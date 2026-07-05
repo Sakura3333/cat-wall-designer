@@ -4,7 +4,7 @@ import { Component, forwardRef, Suspense, useEffect, useMemo, useRef, useState, 
 import { Box3, BufferGeometry, Camera, CanvasTexture, Float32BufferAttribute, Group, Mesh, MOUSE, Object3D, Quaternion, Raycaster, TextureLoader, Vector2, Vector3 } from 'three'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { useEditorStore } from '../../editor/editorStore'
-import { resolveComponentAssetSource } from '../../domain/scene/componentAssets'
+import { buildOriginalAssetTransform, resolveComponentAssetSource } from '../../domain/scene/componentAssets'
 import { getComponentCatalogItem } from '../../domain/scene/componentCatalog'
 import type { ComponentPlacementHit, ComponentPlacementSurface, PlaneSpec, PlaneType, PolygonSpec, SceneComponent, Vec2 } from '../../domain/scene/types'
 import { applyConstrainedComponentTransformPreview } from './componentTransformPreview'
@@ -405,7 +405,7 @@ function ComponentFallbackBox({ size, color, selected, muted = false }: { size: 
 
 function ComponentGltfAsset({ url, size, selected }: { url: string; size: NonNullable<SceneComponent['size']>; selected: boolean }) {
   const gltf = useLoader(GLTFLoader, url)
-  const { scene, offset, scale } = useMemo(() => normalizeGltfScene(gltf.scene, size), [gltf.scene, size])
+  const { scene, offset, scale } = useMemo(() => normalizeGltfScene(gltf.scene), [gltf.scene])
 
   return (
     <>
@@ -415,7 +415,7 @@ function ComponentGltfAsset({ url, size, selected }: { url: string; size: NonNul
   )
 }
 
-function normalizeGltfScene(sourceScene: Object3D, size: NonNullable<SceneComponent['size']>) {
+function normalizeGltfScene(sourceScene: Object3D) {
   const scene = sourceScene.clone(true)
   scene.traverse((object) => {
     if (object instanceof Mesh) {
@@ -425,28 +425,14 @@ function normalizeGltfScene(sourceScene: Object3D, size: NonNullable<SceneCompon
   })
 
   const box = new Box3().setFromObject(scene)
-  const modelSize = box.getSize(new Vector3())
   const center = box.getCenter(new Vector3())
-  const scale = {
-    x: safeScale(size.x, modelSize.x),
-    y: safeScale(size.y, modelSize.y),
-    z: safeScale(size.z, modelSize.z),
-  }
+  const transform = buildOriginalAssetTransform({ x: center.x, y: center.y, z: center.z })
 
   return {
     scene,
-    scale,
-    offset: {
-      x: -center.x * scale.x,
-      y: -center.y * scale.y,
-      z: -center.z * scale.z,
-    },
+    scale: transform.scale,
+    offset: transform.offset,
   }
-}
-
-function safeScale(target: number, source: number) {
-  if (!Number.isFinite(target) || !Number.isFinite(source) || Math.abs(source) < 0.000001) return 1
-  return target / source
 }
 
 function ComponentSelectionBounds({ size }: { size: NonNullable<SceneComponent['size']> }) {

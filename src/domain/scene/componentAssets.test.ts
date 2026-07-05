@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { componentAssetRegistry, normalizeComponentAssetKey, normalizeComponentAssetUrl, resolveComponentAssetSource } from './componentAssets'
+import { buildOriginalAssetTransform, componentAssetRegistry, normalizeComponentAssetKey, normalizeComponentAssetUrl, resolveComponentAssetSize, resolveComponentAssetSource } from './componentAssets'
 
 describe('component asset registry', () => {
   it('resolves built-in asset keys before external URLs', () => {
@@ -7,6 +7,7 @@ describe('component asset registry', () => {
       key: 'wall-two-step-ladder',
       source: 'builtin',
       url: '/models/cat-wall/wall-two-step-ladder.glb',
+      size: { x: 0.2833, y: 0.4662, z: 0.2166 },
     })
   })
 
@@ -25,5 +26,17 @@ describe('component asset registry', () => {
   it('keeps registry URLs under the Vite public model directory', () => {
     expect(Object.values(componentAssetRegistry).map((asset) => asset.url)).toEqual(expect.arrayContaining(['/models/cat-wall/wall-two-step-ladder.glb']))
     expect(Object.values(componentAssetRegistry).every((asset) => asset.url.startsWith('/models/cat-wall/') && asset.url.endsWith('.glb'))).toBe(true)
+  })
+
+  it('uses built-in asset dimensions for placement sizing', () => {
+    expect(resolveComponentAssetSize({ x: 1, y: 1, z: 1 }, 'wall-two-step-ladder')).toEqual({ x: 0.2833, y: 0.4662, z: 0.2166 })
+    expect(resolveComponentAssetSize({ x: 1, y: 1, z: 1 }, undefined, 'https://example.com/model.glb')).toEqual({ x: 1, y: 1, z: 1 })
+  })
+
+  it('centers model assets without changing their original scale or proportions', () => {
+    expect(buildOriginalAssetTransform({ x: 4.9847, y: 0, z: 0.1083 })).toEqual({
+      offset: { x: -4.9847, y: 0, z: -0.1083 },
+      scale: { x: 1, y: 1, z: 1 },
+    })
   })
 })
