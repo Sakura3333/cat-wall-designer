@@ -1,6 +1,6 @@
-import { GitCommitHorizontal, MousePointer2, Move3d, Redo2, Rotate3D, RotateCcw, Ruler, Trash2, Undo2 } from 'lucide-react'
+import { Circle, GitCommitHorizontal, Lock, MousePointer2, Move3d, Redo2, Rotate3D, RotateCcw, Ruler, Square, Trash2, Undo2, Unlock } from 'lucide-react'
 import { useEditorStore } from '../../editor/editorStore'
-import type { PerspectiveAxis, TransformMode } from '../../domain/scene/types'
+import type { ForbiddenZoneDrawMode, PerspectiveAxis, TransformMode } from '../../domain/scene/types'
 
 const axisButtons: Array<{ axis: PerspectiveAxis; label: string; title: string }> = [
   { axis: 'left', label: '左向线', title: '标记左侧墙面或地面方向的透视线' },
@@ -12,6 +12,11 @@ const transformButtons: Array<{ mode: TransformMode; label: string; title: strin
   { mode: 'select', label: '选择', title: '选择场景中的物体', icon: MousePointer2 },
   { mode: 'translate', label: '移动', title: '移动 3D 物体', icon: Move3d },
   { mode: 'rotate', label: '旋转', title: '旋转 3D 物体', icon: Rotate3D },
+]
+
+const forbiddenZoneButtons: Array<{ mode: ForbiddenZoneDrawMode; label: string; title: string; icon: typeof Square }> = [
+  { mode: 'rectangle', label: '矩形禁区', title: '绘制矩形禁止摆放区域', icon: Square },
+  { mode: 'ellipse', label: '椭圆禁区', title: '绘制椭圆禁止摆放区域', icon: Circle },
 ]
 
 export function Toolbar({ compact = false }: { compact?: boolean }) {
@@ -26,10 +31,17 @@ export function Toolbar({ compact = false }: { compact?: boolean }) {
   const activePerspectiveAxis = useEditorStore((state) => state.activePerspectiveAxis)
   const transformMode = useEditorStore((state) => state.transformMode)
   const setTransformMode = useEditorStore((state) => state.setTransformMode)
+  const forbiddenZoneDrawMode = useEditorStore((state) => state.forbiddenZoneDrawMode)
+  const setForbiddenZoneDrawMode = useEditorStore((state) => state.setForbiddenZoneDrawMode)
+  const forbiddenZonesLocked = useEditorStore((state) => state.forbiddenZonesLocked)
+  const setForbiddenZonesLocked = useEditorStore((state) => state.setForbiddenZonesLocked)
   const selectedId = useEditorStore((state) => state.selectedId)
   const deleteSelectedSceneObject = useEditorStore((state) => state.deleteSelectedSceneObject)
   const historyLength = useEditorStore((state) => state.history.length)
   const futureLength = useEditorStore((state) => state.future.length)
+  const showMeasurements = useEditorStore((state) => state.project.settings.showMeasurements ?? true)
+  const toggleMeasurements = useEditorStore((state) => state.toggleMeasurements)
+  const ForbiddenZoneLockIcon = forbiddenZonesLocked ? Lock : Unlock
 
   if (compact) {
     return (
@@ -49,6 +61,40 @@ export function Toolbar({ compact = false }: { compact?: boolean }) {
             </button>
           )
         })}
+        {forbiddenZoneButtons.map((item) => {
+          const Icon = item.icon
+          return (
+            <button
+              key={item.mode}
+              className={forbiddenZoneDrawMode === item.mode ? 'compact-tool-button active' : 'compact-tool-button'}
+              type="button"
+              aria-label={item.label}
+              title={item.title}
+              onClick={() => setForbiddenZoneDrawMode(forbiddenZoneDrawMode === item.mode ? 'select' : item.mode)}
+            >
+              <Icon />
+            </button>
+          )
+        })}
+        <button
+          className={forbiddenZonesLocked ? 'compact-tool-button locked' : 'compact-tool-button unlocked'}
+          type="button"
+          aria-label={forbiddenZonesLocked ? '解锁禁用区域' : '锁定禁用区域'}
+          title={forbiddenZonesLocked ? '当前已锁定，点击解锁后可移动区域和锚点' : '当前已解锁，点击锁定后禁止自由移动'}
+          onClick={() => setForbiddenZonesLocked(!forbiddenZonesLocked)}
+        >
+          <ForbiddenZoneLockIcon />
+        </button>
+        <span className="compact-divider" />
+        <button
+          className={showMeasurements ? 'compact-tool-button active' : 'compact-tool-button'}
+          type="button"
+          aria-label="测距"
+          title={showMeasurements ? '隐藏 3D 距离测量' : '显示 3D 距离测量'}
+          onClick={() => toggleMeasurements(!showMeasurements)}
+        >
+          <Ruler />
+        </button>
         <span className="compact-divider" />
         <button className="compact-tool-button" type="button" aria-label="撤销" title="撤销" onClick={undo} disabled={historyLength === 0}>
           <Undo2 />
@@ -120,6 +166,10 @@ export function Toolbar({ compact = false }: { compact?: boolean }) {
         <button className={mode === 'marking-ruler' ? 'tool-button active ruler-tool' : 'tool-button ruler-tool'} type="button" title="标尺" onClick={createRuler}>
           <Ruler />
           <span>标尺</span>
+        </button>
+        <button className={showMeasurements ? 'tool-button active ruler-tool' : 'tool-button ruler-tool'} type="button" title={showMeasurements ? '隐藏 3D 距离测量' : '显示 3D 距离测量'} onClick={() => toggleMeasurements(!showMeasurements)}>
+          <Ruler />
+          <span>测距</span>
         </button>
         <div className="tool-button tool-duo" role="group" aria-label="撤销和重做">
           <span className="icon-pair">

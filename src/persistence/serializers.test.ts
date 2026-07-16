@@ -13,10 +13,12 @@ const baseProject: Project = {
   sceneCamera: null,
   polygons: [],
   planes: [],
+  forbiddenZones: [],
   components: [],
   settings: {
     showFloor: true,
     sketchBackground: true,
+    showMeasurements: true,
   },
 }
 
@@ -48,10 +50,12 @@ describe('project serializers', () => {
       id: 'legacy-project',
       name: '本地草稿',
       planes: [],
+      forbiddenZones: [],
       components: [],
       settings: {
         showFloor: true,
         sketchBackground: true,
+        showMeasurements: true,
       },
     })
   })

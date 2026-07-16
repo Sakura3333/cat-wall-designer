@@ -1,5 +1,7 @@
 import type { ComponentCatalogItem } from './componentCatalog'
 import type { ComponentPlacement, ComponentPlacementHit, ComponentPlacementMode, ComponentPlacementWarning, PlaneSpec, SceneComponent, Vec3 } from './types'
+import { WALL_SURFACE_LOCAL_Z } from '../geometry/planeGeometryConstants'
+import { addVec3, distanceVec3, normalizeVec3, planeLocalToWorld, planeSurfaceNormal, roundVec3, scaleVec3, subtractVec3, worldToPlaneLocal } from './planeMath'
 
 export type ComponentPlacementSpec = Pick<ComponentCatalogItem, 'placement' | 'defaultSize' | 'defaultRotation'>
 
@@ -32,7 +34,6 @@ type TransformAttachment = {
 }
 
 const FREE_DROP_OFFSET = 0.08
-const WALL_SURFACE_LOCAL_Z = 0.05
 
 export function canPlaceOnHit(mode: ComponentPlacementMode, hit: ComponentPlacementHit): boolean {
   if (mode === 'free') return true
@@ -46,7 +47,7 @@ export function buildComponentPlacement(spec: ComponentPlacementSpec, hit: Compo
   if (!canPlaceOnHit(spec.placement, hit)) return { canPlace: false, reason: 'incompatible-surface', warnings: [] }
 
   if (spec.placement === 'free') {
-    const normal = normalize(hit.normal, { x: 0, y: 1, z: 0 })
+    const normal = normalizeVec3(hit.normal, { x: 0, y: 1, z: 0 })
     return {
       canPlace: true,
       placement: {
@@ -54,7 +55,7 @@ export function buildComponentPlacement(spec: ComponentPlacementSpec, hit: Compo
         anchor: hit.point,
         normal,
       },
-      position: roundVec3(add(hit.point, scale(normal, FREE_DROP_OFFSET))),
+      position: roundVec3(addVec3(hit.point, scaleVec3(normal, FREE_DROP_OFFSET))),
       rotation: spec.defaultRotation,
       warnings: [],
     }
@@ -75,7 +76,7 @@ export function buildComponentPlacement(spec: ComponentPlacementSpec, hit: Compo
       anchor: clampResult.anchor,
       normal,
     },
-    position: roundVec3(add(clampResult.anchor, scale(normal, offset))),
+    position: roundVec3(addVec3(clampResult.anchor, scaleVec3(normal, offset))),
     rotation: placementRotation(plane, spec),
     warnings: clampResult.warnings,
   }
@@ -140,17 +141,17 @@ export function transformBoundComponentWithPlane(
   const size = component.size ?? spec?.defaultSize ?? { x: 0.46, y: 0.28, z: 0.14 }
   const offset = mode === 'wall' ? size.z / 2 : size.y / 2
   const previousNormal = planeSurfaceNormal(previousPlane)
-  const previousAnchor = component.placement.anchor ?? subtract(component.position, scale(previousNormal, offset))
+  const previousAnchor = component.placement.anchor ?? subtractVec3(component.position, scaleVec3(previousNormal, offset))
   const localAnchor = wallSurfaceLocal(worldToPlaneLocal(previousAnchor, previousPlane), mode)
   const nextAnchor = roundVec3(planeLocalToWorld(localAnchor, nextPlane))
   const nextNormal = planeSurfaceNormal(nextPlane)
-  const localRotation = subtract(component.rotation, previousPlane.rotation)
-  const nextRotation = mode === 'wall' ? roundVec3(add(nextPlane.rotation, localRotation)) : component.rotation
+  const localRotation = subtractVec3(component.rotation, previousPlane.rotation)
+  const nextRotation = mode === 'wall' ? roundVec3(addVec3(nextPlane.rotation, localRotation)) : component.rotation
 
   return {
     ...component,
     targetPlaneId: nextPlane.id,
-    position: roundVec3(add(nextAnchor, scale(nextNormal, offset))),
+    position: roundVec3(addVec3(nextAnchor, scaleVec3(nextNormal, offset))),
     rotation: nextRotation,
     placement: {
       ...component.placement,
@@ -169,14 +170,14 @@ export function projectBoundComponentOntoPlane(component: SceneComponent, plane:
   const size = component.size ?? spec?.defaultSize ?? { x: 0.46, y: 0.28, z: 0.14 }
   const normal = planeSurfaceNormal(plane)
   const offset = mode === 'wall' ? size.z / 2 : size.y / 2
-  const inferredAnchor = subtract(component.position, scale(normal, offset))
+  const inferredAnchor = subtractVec3(component.position, scaleVec3(normal, offset))
   const local = wallSurfaceLocal(worldToPlaneLocal(inferredAnchor, plane), mode)
   const anchor = clampAnchorToPlaneBounds(planeLocalToWorld(local, plane), plane, size, mode)
 
   return {
     ...component,
     targetPlaneId: plane.id,
-    position: roundVec3(add(anchor, scale(normal, offset))),
+    position: roundVec3(addVec3(anchor, scaleVec3(normal, offset))),
     placement: {
       ...component.placement,
       mode,
@@ -209,9 +210,9 @@ function buildTransformAttachment(
 ): TransformAttachment {
   const normal = planeSurfaceNormal(plane)
   const offset = mode === 'wall' ? size.z / 2 : size.y / 2
-  const inferredAnchor = subtract(sourcePosition, scale(normal, offset))
+  const inferredAnchor = subtractVec3(sourcePosition, scaleVec3(normal, offset))
   const anchor = clampAnchorToPlaneBounds(inferredAnchor, plane, size, mode, surfaceAnchor)
-  const position = roundVec3(add(anchor, scale(normal, offset)))
+  const position = roundVec3(addVec3(anchor, scaleVec3(normal, offset)))
 
   return {
     plane,
@@ -219,7 +220,7 @@ function buildTransformAttachment(
     normal,
     position,
     targetChanged,
-    score: distance(sourcePosition, position),
+    score: distanceVec3(sourcePosition, position),
   }
 }
 
@@ -280,93 +281,4 @@ function placementRotation(plane: PlaneSpec, spec: ComponentPlacementSpec): Vec3
   }
 
   return spec.defaultRotation
-}
-
-function planeSurfaceNormal(plane: PlaneSpec): Vec3 {
-  return roundVec3(normalize(rotateVec3({ x: 0, y: 0, z: 1 }, plane.rotation), { x: 0, y: 1, z: 0 }))
-}
-
-function worldToPlaneLocal(point: Vec3, plane: PlaneSpec): Vec3 {
-  return inverseRotateVec3(subtract(point, plane.position), plane.rotation)
-}
-
-function planeLocalToWorld(point: Vec3, plane: PlaneSpec): Vec3 {
-  return add(plane.position, rotateVec3(point, plane.rotation))
-}
-
-function rotateVec3(vector: Vec3, rotation: Vec3): Vec3 {
-  return rotateZ(rotateY(rotateX(vector, rotation.x), rotation.y), rotation.z)
-}
-
-function inverseRotateVec3(vector: Vec3, rotation: Vec3): Vec3 {
-  return rotateX(rotateY(rotateZ(vector, -rotation.z), -rotation.y), -rotation.x)
-}
-
-function rotateX(vector: Vec3, angle: number): Vec3 {
-  const sin = Math.sin(angle)
-  const cos = Math.cos(angle)
-  return {
-    x: vector.x,
-    y: vector.y * cos - vector.z * sin,
-    z: vector.y * sin + vector.z * cos,
-  }
-}
-
-function rotateY(vector: Vec3, angle: number): Vec3 {
-  const sin = Math.sin(angle)
-  const cos = Math.cos(angle)
-  return {
-    x: vector.x * cos + vector.z * sin,
-    y: vector.y,
-    z: -vector.x * sin + vector.z * cos,
-  }
-}
-
-function rotateZ(vector: Vec3, angle: number): Vec3 {
-  const sin = Math.sin(angle)
-  const cos = Math.cos(angle)
-  return {
-    x: vector.x * cos - vector.y * sin,
-    y: vector.x * sin + vector.y * cos,
-    z: vector.z,
-  }
-}
-
-function normalize(vector: Vec3, fallback: Vec3): Vec3 {
-  const length = Math.hypot(vector.x, vector.y, vector.z)
-  if (length <= 0.000001) return fallback
-  return {
-    x: vector.x / length,
-    y: vector.y / length,
-    z: vector.z / length,
-  }
-}
-
-function add(a: Vec3, b: Vec3): Vec3 {
-  return { x: a.x + b.x, y: a.y + b.y, z: a.z + b.z }
-}
-
-function subtract(a: Vec3, b: Vec3): Vec3 {
-  return { x: a.x - b.x, y: a.y - b.y, z: a.z - b.z }
-}
-
-function scale(vector: Vec3, value: number): Vec3 {
-  return { x: vector.x * value, y: vector.y * value, z: vector.z * value }
-}
-
-function distance(a: Vec3, b: Vec3): number {
-  return Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
-}
-
-function roundVec3(vector: Vec3): Vec3 {
-  return {
-    x: roundNumber(vector.x),
-    y: roundNumber(vector.y),
-    z: roundNumber(vector.z),
-  }
-}
-
-function roundNumber(value: number) {
-  const rounded = Number(value.toFixed(6))
-  return Object.is(rounded, -0) ? 0 : rounded
 }

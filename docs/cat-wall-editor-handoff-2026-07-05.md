@@ -1,5 +1,7 @@
 # Cat Wall Editor 3D 编辑器交接文档（2026-07-05）
 
+> **2026-07-16 状态说明：** 本文保留 2026-07-05 前后的历史交接记录；后续已继续完成施工图、禁用区域、真实资产、面板小屏优化、误选修复和商业化/AI CAD 方向文档。继续开发请先读 `docs/cat-wall-editor-handoff-2026-07-16.md`。
+
 本文交接 2026-07-05 前后完成的 3D 编辑器主线开发与后续修复。继续开发前建议先读：
 
 1. `docs/cat-wall-editor-dev-spec.md`
@@ -306,6 +308,48 @@
 - 墙面组件中心 = `anchor + normal * size.z / 2`。
 - 如果后续修改 wall 厚度，必须同步修改或集中管理 `WALL_THICKNESS` 和 `WALL_SURFACE_LOCAL_Z`。
 
+## 本轮新增设计：3D 距离测量
+
+目标是在 3D 场景中直接显示可读的实体测量线和文字，覆盖三类距离：
+
+1. 组件到组件：同一绑定 plane 内，按组件在 plane surface 上的 2D 占位矩形计算最近净距；重叠时距离为 `0`。
+2. 组件到墙边/plane 边：按组件占位矩形到目标 plane 四条边的剩余距离计算；wall 使用 local X/Y，floor 使用 local X/Y 作为平面 footprint。
+3. 组件到地面：按组件底部到 floor 顶面或 `y = 0` 的竖向净距计算；wall 组件优先使用其贴附墙面的底边点，free 组件用自身包围盒底部估算。
+
+设计约束：
+
+- 测量使用 catalog/实例中的 `size` 作为稳定占位尺寸，不依赖异步 GLB 真实 bounding box，保持与放置、边界 clamp 和选择框一致。
+- 测量计算放在纯 domain 模块中，R3F 层只负责把结果渲染成实体线和文本，避免把几何语义散落在 React 组件里。
+- 先做聚焦式显示：选中组件时显示该组件到同 plane 其他组件、四条 plane 边和地面的测量；未选中组件时只显示每个 plane 内最近的一组组件间距，避免线条过密。
+- 测量线应在 plane surface 法线方向轻微外推，避免与墙面/地面 z-fighting；文字用 billboard 面向相机。
+- 单位按场景米制计算，小于 `1m` 显示为 `cm`，大于等于 `1m` 显示为 `m`。
+
+拆解计划：
+
+1. 几何基础：
+   - 新增共享常量 `src/domain/geometry/planeGeometryConstants.ts`，集中 `WALL_THICKNESS`、`FLOOR_THICKNESS`、`WALL_SURFACE_LOCAL_Z`。
+   - 抽出 plane 坐标换算工具 `src/domain/scene/planeMath.ts`，供放置约束和测量模块共用。
+2. 测量计算：
+   - 新增 `src/domain/scene/distanceMeasurements.ts`，输出 `DistanceMeasurement[]`。
+   - 覆盖同 plane 组件最近净距、组件到四边、组件到底面的纯函数测试。
+3. 3D 渲染：
+   - 在 `SceneCanvas.tsx` 中按当前 `selectedId` 构建测量结果。
+   - 使用 Drei `Line` 渲染实体线，`Billboard + Text` 渲染标签。
+4. UI 与持久化：
+   - 在 `Project.settings` 中新增 `showMeasurements`，旧项目默认开启。
+   - 在紧凑 3D 工具栏增加测量开关，支持项目 JSON 持久化。
+5. 验证：
+   - 跑 `npm run test` 验证 domain 计算。
+   - 跑 `npm run build` 验证 R3F/Drei 类型和生产构建。
+
+本轮实施状态（2026-07-05）：
+
+- 已完成共享几何常量：`WALL_THICKNESS`、`FLOOR_THICKNESS`、`WALL_SURFACE_LOCAL_Z` 统一到 `src/domain/geometry/planeGeometryConstants.ts`。
+- 已完成 plane 数学工具抽取：`src/domain/scene/planeMath.ts`，`componentPlacement.ts` 和测量模块共用同一套 world/local 换算。
+- 已完成测量计算模块：`src/domain/scene/distanceMeasurements.ts`，支持选中组件的组件间距、四边距离、离地距离；未选中组件时显示每个 plane 内最近组件间距。
+- 已完成 3D 渲染接入：`SceneCanvas.tsx` 使用 Drei `Line` 渲染实体线，`Billboard + Text` 渲染面向相机的距离文字。
+- 已完成测量开关：`Project.settings.showMeasurements` 旧项目默认开启，紧凑 3D 工具栏提供开关并随 JSON 持久化。
+
 ## 当前测试与验证
 
 自动化测试文件：
@@ -315,6 +359,7 @@
 - `src/domain/geometry/wallTemplates.test.ts`
 - `src/domain/scene/componentAssets.test.ts`
 - `src/domain/scene/componentCatalog.test.ts`
+- `src/domain/scene/distanceMeasurements.test.ts`
 - `src/domain/scene/componentPlacement.test.ts`
 - `src/editor/editorStore.test.ts`
 - `src/features/scene3d/componentTransformPreview.test.ts`
@@ -322,9 +367,13 @@
 
 最近验证记录：
 
-- `npm run test` 已通过，覆盖 9 个测试文件、57 个测试。
+- `npm run test` 已通过，覆盖 10 个测试文件、62 个测试。
 - `npm run build` 已通过。
 - 构建时仍有 Vite chunk size warning，这是已知问题，不影响当前运行。
+- 浏览器冒烟验证过 `http://127.0.0.1:5174/`：
+  - 桌面视口 1280x720：单面墙模板生成后 3D 场景非空，测距开关显示并默认开启。
+  - 移动视口 390x844：canvas 占满视口，测距开关仍可见。
+  - 测量线的几何语义由 `distanceMeasurements.test.ts` 覆盖；浏览器冒烟未额外拖放组件生成可视测量线。
 - 浏览器手测过 `http://localhost:5173/`：
   - 默认夹角墙不再明显交叉。
   - 移动墙体时，墙上组件会随墙移动。
@@ -357,10 +406,10 @@ src/domain/geometry/planeGeometryConstants.ts
 
 建议后续：
 
-- wall 组件使用墙面局部 X/Y 平面拖动。
-- floor 组件使用地面局部 X/Z 平面拖动。
-- 隐藏或禁用会破坏接触面的轴向。
-- 旋转也按 wall/floor/free 分别限制合法轴。
+- wall 组件使用墙面局部 X/Y 平面拖动。    已完成
+- floor 组件使用地面局部 X/Z 平面拖动。   已完成
+- 隐藏或禁用会破坏接触面的轴向。          已完成
+- 旋转按 wall/floor/free 分别限制合法轴。
 
 ### P1：组件碰撞和间距
 
@@ -461,3 +510,36 @@ src/domain/geometry/planeGeometryConstants.ts
 3. 组件跟随墙体后嵌入墙体。
 
 下一轮最建议先做“集中几何常量 + Transform 交互手感”，再进入碰撞、图片导出和后端项目管理。
+
+## 2026-07-06 新增设计：墙面/地面禁止摆放区域
+
+目标：允许用户在 wall / floor plane 上绘制不可摆放区域，并在 3D 场景中持续可见、可选中、可编辑。组件拖入或移动提交时，如果绑定面的 2D footprint 与禁止区域相交，应拒绝本次摆放或移动。
+
+数据模型：
+- 在 `Project` 上新增 `forbiddenZones: ForbiddenZone[]`。
+- `ForbiddenZone` 绑定到一个 `planeId`，坐标统一保存为该 plane 的 local X/Y。
+- 形状保留两类：`polygon` 与 `ellipse`。矩形工具生成 4 点 polygon，后续可通过加锚点变成任意多边形；椭圆工具生成 ellipse，保存 `center / radiusX / radiusY`。
+- 旧项目反序列化时 `forbiddenZones` 默认为空数组。
+
+交互设计：
+- 紧凑 3D 工具栏新增两个区域绘制模式：矩形禁止区、椭圆禁止区。
+- 紧凑 3D 工具栏新增禁止区锁定按钮。默认锁定，此时禁止区只能选中查看/改属性，不能在场景中自由拖动；解锁后才允许拖动整个区域或拖动 polygon 锚点。
+- 进入绘制模式后，在墙面或地面按下并拖动生成区域；松开后写入 store 并选中新区域。
+- 选中区域时，3D 场景显示半透明填充、实线边框和锚点。polygon 锚点可拖动；整个区域可拖动平移。ellipse 通过中心和半径编辑。
+- 右侧属性面板在选中禁止区时显示中心、尺寸、绑定面、形状信息；polygon 额外显示锚点列表，支持加锚点、删锚点和精确调整锚点坐标。
+- 右上项目文件工具栏新增“清空草稿”按钮，点击后通过确认弹窗清空图片、标注、几何、组件、禁止区、历史和临时反馈，项目 id/name 保持不变。
+
+几何与校验：
+- 组件 footprint 沿用放置/测距语义：wall 用 plane local X/Y + 组件 width/height；floor 用 plane local X/Y + 组件 width/depth。
+- polygon 与组件矩形相交：检查矩形角点在多边形内、多边形点在矩形内、边线相交。
+- ellipse 与组件矩形相交：把矩形投影到 ellipse 的轴对齐局部空间，检查中心到矩形最近点的归一化距离。
+- `addComponent()` 创建前检查禁止区域，命中则不创建并显示错误反馈。
+- `updateComponentTransform()` 提交前检查禁止区域，命中则保留原位置并显示错误反馈。
+
+开发拆解：
+1. 扩展 `src/domain/scene/types.ts`、`src/persistence/serializers.ts` 和 store 初始项目，补齐旧项目默认值。
+2. 新增 `src/domain/scene/forbiddenZones.ts` 与单元测试，覆盖拖拽建形、尺寸/中心计算、锚点编辑、组件 footprint 冲突判断。
+3. 扩展 `editorStore.ts`：区域绘制模式、增删改区域、撤销/重做、选中删除、组件摆放/移动冲突反馈。
+4. 扩展 `SceneCanvas.tsx`：plane 上拖拽绘制、区域可视化、区域/锚点拖动编辑、禁用绘制时的相机误触。
+5. 扩展 `Toolbar.tsx` 和 `PropertyPanel.tsx`：绘制工具入口与右侧参数编辑。
+6. 跑 `npm run test`、`npm run build`，并在 `http://localhost:5173/` 验证矩形/椭圆创建、编辑、阻止组件放入禁区。

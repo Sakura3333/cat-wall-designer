@@ -1,5 +1,7 @@
 # 组件系统交接文档（2026-07-04）
 
+> **2026-07-16 状态说明：** 本文记录的是组件系统早期交接，文中多处“还未落地”的组件与场景交互已经完成，包括 raycast drop、接触面约束、Transform 约束、真实 GLB 加载、缩略图、小分类 tab、禁用区域和施工图/BOM。最新状态请以 `docs/cat-wall-editor-handoff-2026-07-16.md` 为准。
+
 本文档交接 2026-07-04 这轮组件系统改造的现状，并把下一阶段“组件与场景互动”的开发方案写细。后续如果继续做贴墙、落地、自由摆放、碰撞、资产加载和属性编辑，优先从本文开始读。
 
 ## 1. 当前结论
@@ -991,4 +993,3 @@ src/domain/scene/componentCatalog.test.ts
 6. `src/features/scene3d/SceneCanvas.tsx`
 7. `src/features/properties/PropertyPanel.tsx`
 8. `src/features/components-manager/ComponentsManagerPage.tsx`
-

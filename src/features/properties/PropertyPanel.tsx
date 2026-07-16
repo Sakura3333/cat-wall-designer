@@ -1,23 +1,25 @@
-import { Check, Grid3X3, ImageIcon, Move3d, Rotate3D, Ruler, SlidersHorizontal, type LucideIcon } from 'lucide-react'
+import { Check, Grid3X3, ImageIcon, Move3d, Plus, Rotate3D, Ruler, SlidersHorizontal, Trash2, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useEditorStore } from '../../editor/editorStore'
 import { getComponentCatalogItem } from '../../domain/scene/componentCatalog'
 import { clampAnchorToPlaneBoundsWithWarnings } from '../../domain/scene/componentPlacement'
-import type { ComponentPlacementMode, ComponentPlacementWarning, ComponentPropertyValue, PlaneSpec, SceneComponent, Vec3 } from '../../domain/scene/types'
+import { addForbiddenZoneAnchor, getForbiddenZoneCenter, getForbiddenZoneSize, moveForbiddenZoneToCenter, removeForbiddenZoneAnchor, resizeForbiddenZone, updateForbiddenZoneAnchor } from '../../domain/scene/forbiddenZones'
+import type { ComponentPlacementMode, ComponentPlacementWarning, ComponentPropertyValue, ForbiddenZone, PlaneSpec, SceneComponent, Vec2, Vec3 } from '../../domain/scene/types'
 import { getSelectedPlane } from '../../domain/scene/selection'
 
 export function PropertyPanel() {
   const project = useEditorStore((state) => state.project)
   const selectedId = useEditorStore((state) => state.selectedId)
   const updatePlaneSize = useEditorStore((state) => state.updatePlaneSize)
-  const updatePlaneTextureMapping = useEditorStore((state) => state.updatePlaneTextureMapping)
   const updatePlaneTransform = useEditorStore((state) => state.updatePlaneTransform)
   const updateComponentTransform = useEditorStore((state) => state.updateComponentTransform)
+  const updateForbiddenZone = useEditorStore((state) => state.updateForbiddenZone)
   const selectedPlane = getSelectedPlane(project, selectedId)
   const selectedComponent = project.components.find((component) => component.id === selectedId) ?? null
+  const selectedForbiddenZone = project.forbiddenZones.find((zone) => zone.id === selectedId) ?? null
   const selectedComponentCatalog = selectedComponent ? getComponentCatalogItem(selectedComponent.kind) : null
   const floorPlane = project.planes.find((plane) => plane.type === 'floor')
-  const selectedTitle = selectedComponent ? '当前 3D 物体' : selectedPlane?.type === 'floor' ? '当前地面 plane' : '当前墙面 plane'
+  const selectedTitle = selectedForbiddenZone ? '当前禁止区域' : selectedComponent ? '当前 3D 物体' : selectedPlane?.type === 'floor' ? '当前地面 plane' : '当前墙面 plane'
   const guideCounts = {
     left: project.perspectiveGuides.filter((guide) => guide.axis === 'left').length,
     right: project.perspectiveGuides.filter((guide) => guide.axis === 'right').length,
@@ -33,7 +35,9 @@ export function PropertyPanel() {
 
       <div className="property-rail-list">
         <PropertyPopover icon={Move3d} label="位置" title={`${selectedTitle} / 位置`}>
-          {selectedComponent ? (
+          {selectedForbiddenZone ? (
+            <Vec2Editor label="中心" value={getForbiddenZoneCenter(selectedForbiddenZone)} step={0.01} onChange={(center) => updateForbiddenZone(selectedForbiddenZone.id, moveForbiddenZoneToCenter(selectedForbiddenZone, center))} />
+          ) : selectedComponent ? (
             <VectorEditor label="位置" value={selectedComponent.position} step={0.01} onChange={(position) => updateComponentTransform(selectedComponent.id, { position })} />
           ) : selectedPlane ? (
             <VectorEditor label="位置" value={selectedPlane.position} step={0.01} onChange={(position) => updatePlaneTransform(selectedPlane.id, { position })} />
@@ -43,7 +47,9 @@ export function PropertyPanel() {
         </PropertyPopover>
 
         <PropertyPopover icon={Rotate3D} label="旋转" title={`${selectedTitle} / 旋转`}>
-          {selectedComponent ? (
+          {selectedForbiddenZone ? (
+            <p className="empty-text">禁止区域跟随绑定 plane，不单独旋转。</p>
+          ) : selectedComponent ? (
             <VectorEditor label="旋转" value={selectedComponent.rotation} step={1} onChange={(rotation) => updateComponentTransform(selectedComponent.id, { rotation })} />
           ) : selectedPlane ? (
             <VectorEditor label="旋转" value={selectedPlane.rotation} step={1} onChange={(rotation) => updatePlaneTransform(selectedPlane.id, { rotation })} />
@@ -53,7 +59,9 @@ export function PropertyPanel() {
         </PropertyPopover>
 
         <PropertyPopover icon={Ruler} label="尺寸" title={`${selectedTitle} / 尺寸`}>
-          {selectedPlane ? (
+          {selectedForbiddenZone ? (
+            <ZoneSizeEditor zone={selectedForbiddenZone} onChange={(size) => updateForbiddenZone(selectedForbiddenZone.id, resizeForbiddenZone(selectedForbiddenZone, size))} />
+          ) : selectedPlane ? (
             <>
               <MeasureControl label="长" value={selectedPlane.width} min={1.8} max={6} onChange={(value) => updatePlaneSize(selectedPlane.id, 'width', value)} />
               <MeasureControl label="宽" value={selectedPlane.height} min={1.2} max={3.6} onChange={(value) => updatePlaneSize(selectedPlane.id, 'height', value)} />
@@ -66,20 +74,16 @@ export function PropertyPanel() {
         </PropertyPopover>
 
         <PropertyPopover icon={ImageIcon} label="贴图" title={`${selectedTitle} / 贴图`}>
-          {selectedPlane ? (
-            <label className="texture-toggle">
-              <input
-                type="checkbox"
-                checked={selectedPlane.textureEnabled && Boolean(selectedPlane.textureUrl)}
-                disabled={!selectedPlane.textureUrl}
-                onChange={(event) => updatePlaneTextureMapping(selectedPlane.id, event.target.checked)}
-              />
+          {selectedForbiddenZone ? (
+            <p className="empty-text">禁止区域使用警示填充，不需要贴图。</p>
+          ) : selectedPlane ? (
+            <div className="texture-toggle readonly">
               <span>
                 <Check size={14} />
               </span>
-              <strong>贴图映射</strong>
-              <b>{selectedPlane.textureEnabled && selectedPlane.textureUrl ? '图片区域' : '暖色墙皮'}</b>
-            </label>
+              <strong>程序纹理</strong>
+              <b>按尺寸平铺</b>
+            </div>
           ) : selectedComponent ? (
             <ColorEditor
               label="占位颜色"
@@ -105,7 +109,9 @@ export function PropertyPanel() {
         </PropertyPopover>
 
         <PropertyPopover icon={SlidersHorizontal} label="状态" title="透视与草稿状态">
-          {selectedComponent ? (
+          {selectedForbiddenZone ? (
+            <ForbiddenZoneEditor zone={selectedForbiddenZone} planes={project.planes} onChange={(zone) => updateForbiddenZone(selectedForbiddenZone.id, zone)} />
+          ) : selectedComponent ? (
             <div className="component-status-stack">
               <ComponentBindingSummary component={selectedComponent} planes={project.planes} catalogPlacement={selectedComponentCatalog?.placement} defaultSize={selectedComponentCatalog?.defaultSize} />
               {selectedComponentCatalog ? (
@@ -188,6 +194,26 @@ function VectorEditor({
   )
 }
 
+function Vec2Editor({
+  label,
+  value,
+  step,
+  onChange,
+}: {
+  label: string
+  value: Vec2
+  step: number
+  onChange: (value: Vec2) => void
+}) {
+  return (
+    <div className="vector-editor">
+      <span>{label}</span>
+      <AxisInput axis="X" value={value.x} step={step} onChange={(next) => onChange({ ...value, x: next })} />
+      <AxisInput axis="Y" value={value.y} step={step} onChange={(next) => onChange({ ...value, y: next })} />
+    </div>
+  )
+}
+
 function AxisInput({ axis, value, step, onChange }: { axis: 'X' | 'Y' | 'Z'; value: number; step: number; onChange: (value: number) => void }) {
   return (
     <label className="axis-input">
@@ -216,12 +242,65 @@ function MeasureControl({ label, value, min, max, onChange }: { label: string; v
   )
 }
 
+function ZoneSizeEditor({ zone, onChange }: { zone: ForbiddenZone; onChange: (size: Vec2) => void }) {
+  const size = getForbiddenZoneSize(zone)
+  return (
+    <>
+      <MeasureControl label="宽" value={size.x} min={0.08} max={6} onChange={(value) => onChange({ ...size, x: value })} />
+      <MeasureControl label="高" value={size.y} min={0.08} max={4.5} onChange={(value) => onChange({ ...size, y: value })} />
+    </>
+  )
+}
+
 function ColorEditor({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <label className="axis-input color-input">
       <b>{label}</b>
       <input type="color" value={value} onChange={(event) => onChange(event.target.value)} />
     </label>
+  )
+}
+
+function ForbiddenZoneEditor({ zone, planes, onChange }: { zone: ForbiddenZone; planes: PlaneSpec[]; onChange: (zone: ForbiddenZone) => void }) {
+  const plane = planes.find((item) => item.id === zone.planeId)
+  const center = getForbiddenZoneCenter(zone)
+  const size = getForbiddenZoneSize(zone)
+  const points = zone.shape === 'polygon' ? (zone.points ?? []) : []
+
+  return (
+    <div className="component-status-stack">
+      <div className="component-binding-summary">
+        <div className="summary-grid binding-grid">
+          <span>形状</span>
+          <b>{zone.shape === 'ellipse' ? '椭圆' : '多边形'}</b>
+          <span>绑定对象</span>
+          <b>{plane ? `${planeTypeLabel(plane.type)} / ${plane.name}` : '未绑定'}</b>
+          <span>中心</span>
+          <b>{`${center.x.toFixed(2)}, ${center.y.toFixed(2)}`}</b>
+          <span>尺寸</span>
+          <b>{`${size.x.toFixed(2)}m × ${size.y.toFixed(2)}m`}</b>
+        </div>
+      </div>
+
+      {zone.shape === 'polygon' ? (
+        <div className="zone-anchor-editor">
+          <button className="zone-anchor-action" type="button" onClick={() => onChange(addForbiddenZoneAnchor(zone))}>
+            <Plus size={14} />
+            <span>加锚点</span>
+          </button>
+          {points.map((point, index) => (
+            <div className="zone-anchor-row" key={`${zone.id}-${index}`}>
+              <Vec2Editor label={`点 ${index + 1}`} value={point} step={0.01} onChange={(next) => onChange(updateForbiddenZoneAnchor(zone, index, next))} />
+              <button type="button" title="删除锚点" aria-label="删除锚点" onClick={() => onChange(removeForbiddenZoneAnchor(zone, index))} disabled={points.length <= 3}>
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="empty-text">椭圆区域通过中心和尺寸调整。</p>
+      )}
+    </div>
   )
 }
 

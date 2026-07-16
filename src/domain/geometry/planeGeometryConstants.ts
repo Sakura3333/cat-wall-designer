@@ -1,0 +1,3 @@
+export const WALL_THICKNESS = 0.1
+export const FLOOR_THICKNESS = 0.08
+export const WALL_SURFACE_LOCAL_Z = WALL_THICKNESS / 2

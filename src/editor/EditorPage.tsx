@@ -1,6 +1,7 @@
 import { DndContext, DragEndEvent, useDroppable } from '@dnd-kit/core'
-import { Download, FileUp, PanelsTopLeft, Trash2, WandSparkles, X } from 'lucide-react'
+import { Download, FileText, FileUp, PanelsTopLeft, Trash2, WandSparkles, X } from 'lucide-react'
 import { useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import type { ComponentPlacementFeedback, SceneComponentKind } from '../domain/scene/types'
 import { wallTemplates } from '../domain/scene/wallTemplates'
 import { AnnotationLayer } from '../features/annotation/AnnotationLayer'
@@ -159,8 +160,11 @@ function useProjectPersistence() {
 
 function ProjectFileActions() {
   const inputRef = useRef<HTMLInputElement | null>(null)
+  const navigate = useNavigate()
   const project = useEditorStore((state) => state.project)
   const loadProjectIntoStore = useEditorStore((state) => state.loadProject)
+  const clearDraft = useEditorStore((state) => state.clearDraft)
+  const canOpenDrawings = project.planes.length > 0
 
   function exportProject() {
     const blob = new Blob([serializeProject(useEditorStore.getState().project)], { type: 'application/json' })
@@ -191,6 +195,12 @@ function ProjectFileActions() {
       <button type="button" title="导出项目 JSON" aria-label="导出项目 JSON" onClick={exportProject}>
         <Download size={17} />
       </button>
+      <button type="button" title="生成施工图" aria-label="生成施工图" onClick={() => navigate('/construction_drawings')} disabled={!canOpenDrawings}>
+        <FileText size={17} />
+      </button>
+      <button className="danger" type="button" title="清空草稿" aria-label="清空草稿" onClick={() => confirmClearDraft(clearDraft)}>
+        <Trash2 size={17} />
+      </button>
       <input
         ref={inputRef}
         type="file"
@@ -203,6 +213,11 @@ function ProjectFileActions() {
       />
     </div>
   )
+}
+
+function confirmClearDraft(clearDraft: () => void) {
+  if (!window.confirm('确定要清空编辑器内的全部内容吗？此操作无法撤销。')) return
+  clearDraft()
 }
 
 function safeFileName(value: string) {

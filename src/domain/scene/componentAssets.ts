@@ -8,6 +8,10 @@ export type ComponentAssetSource = {
   size?: Vec3
 }
 
+export type ComponentAssetUrlValidation =
+  | { valid: true; normalizedUrl?: string }
+  | { valid: false; reason: 'unsupported-protocol' | 'unsupported-format'; message: string }
+
 export const componentAssetRegistry = {
   'wall-three-step-platform-right': {
     key: 'wall-three-step-platform-right',
@@ -90,6 +94,8 @@ export const componentAssetRegistry = {
 
 export type ComponentAssetKey = keyof typeof componentAssetRegistry
 
+export const componentAssetOptions = Object.values(componentAssetRegistry)
+
 const legacyAssetKeyMap: Record<string, ComponentAssetKey | undefined> = {
   'cat-shelf-placeholder': 'wall-two-step-ladder',
   'painting-placeholder': undefined,
@@ -123,10 +129,28 @@ export function resolveComponentAssetSource(assetKey?: string, assetUrl?: string
 }
 
 export function normalizeComponentAssetUrl(assetUrl?: string) {
+  const validation = validateComponentAssetUrl(assetUrl)
+  return validation.valid ? validation.normalizedUrl : undefined
+}
+
+export function validateComponentAssetUrl(assetUrl?: string): ComponentAssetUrlValidation {
   const trimmed = assetUrl?.trim()
-  if (!trimmed || !/\.(glb|gltf)([?#].*)?$/i.test(trimmed)) return undefined
-  if (trimmed.startsWith('/') || trimmed.startsWith('https://') || trimmed.startsWith('http://')) return trimmed
-  return undefined
+  if (!trimmed) return { valid: true }
+  if (!trimmed.startsWith('/') && !trimmed.startsWith('https://') && !trimmed.startsWith('http://')) {
+    return {
+      valid: false,
+      reason: 'unsupported-protocol',
+      message: '资产 URL 需要以 /、http:// 或 https:// 开头。',
+    }
+  }
+  if (!/\.(glb|gltf)([?#].*)?$/i.test(trimmed)) {
+    return {
+      valid: false,
+      reason: 'unsupported-format',
+      message: '仅支持 .glb 或 .gltf 模型文件。',
+    }
+  }
+  return { valid: true, normalizedUrl: trimmed }
 }
 
 export function resolveComponentAssetSize(fallbackSize: Vec3, assetKey?: string, assetUrl?: string): Vec3 {

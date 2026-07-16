@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://psd3.local/schemas/ai-cad/modeling-plan.v1.schema.json",
+  "title": "ModelingPlanV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "componentSpecRevision", "coordinateSystem", "nodes", "export"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "componentSpecRevision": { "type": "integer", "minimum": 1 },
+    "coordinateSystem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handedness", "up", "front", "unit"],
+      "properties": {
+        "handedness": { "const": "right" },
+        "up": { "const": "+Y" },
+        "front": { "const": "+Z" },
+        "unit": { "const": "mm" }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          { "$ref": "#/$defs/boxNode" },
+          { "$ref": "#/$defs/mountingHoleNode" }
+        ]
+      }
+    },
+    "export": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary", "optional", "originPolicy", "applyTransforms"],
+      "properties": {
+        "primary": { "const": "glb" },
+        "optional": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "enum": ["blend", "obj", "fbx", "stl"] }
+        },
+        "originPolicy": { "const": "bounding-box-center" },
+        "applyTransforms": { "const": true }
+      }
+    }
+  },
+  "$defs": {
+    "stableId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "vec3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" }
+      }
+    },
+    "positiveVec3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": { "type": "number", "exclusiveMinimum": 0 },
+        "y": { "type": "number", "exclusiveMinimum": 0 },
+        "z": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "transform": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["positionMm", "rotationDeg"],
+      "properties": {
+        "positionMm": { "$ref": "#/$defs/vec3" },
+        "rotationDeg": { "$ref": "#/$defs/vec3" }
+      }
+    },
+    "boxNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "partId", "sizeMm", "transform"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "op": { "const": "box" },
+        "partId": { "$ref": "#/$defs/stableId" },
+        "sizeMm": { "$ref": "#/$defs/positiveVec3" },
+        "transform": { "$ref": "#/$defs/transform" },
+        "materialRole": { "type": "string", "minLength": 1 }
+      }
+    },
+    "mountingHoleNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "op", "holeId", "targetNodeId", "diameterMm", "centerMm", "axis", "through"],
+      "properties": {
+        "id": { "$ref": "#/$defs/stableId" },
+        "op": { "const": "mounting-hole" },
+        "holeId": { "$ref": "#/$defs/stableId" },
+        "targetNodeId": { "$ref": "#/$defs/stableId" },
+        "diameterMm": { "type": "number", "exclusiveMinimum": 0 },
+        "depthMm": { "type": "number", "exclusiveMinimum": 0 },
+        "centerMm": { "$ref": "#/$defs/vec3" },
+        "axis": { "enum": ["+X", "-X", "+Y", "-Y", "+Z", "-Z"] },
+        "through": { "type": "boolean" }
+      }
+    }
+  }
+}

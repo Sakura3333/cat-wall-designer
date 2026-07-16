@@ -1,6 +1,6 @@
 import type { PlaneSpec, PolygonSpec, SourceImage } from '../scene/types'
-
-const WALL_THICKNESS = 0.1
+import { WALL_THICKNESS } from './planeGeometryConstants'
+import { buildFittedFloorPlane } from './planeLayout'
 
 export function buildPlanes(polygons: PolygonSpec[], sourceImage: SourceImage | null, showFloor: boolean, previousPlanes: PlaneSpec[] = []): PlaneSpec[] {
   const orderedPolygons = [...polygons].sort((a, b) => a.center.x - b.center.x)
@@ -35,31 +35,17 @@ export function buildPlanes(polygons: PolygonSpec[], sourceImage: SourceImage | 
 
   if (!showFloor) return wallPlanes
 
-  const previousFloor = previousPlanes.find((plane) => plane.type === 'floor')
-  const wallSpan = wallPlanes.reduce(
-    (bounds, plane) => ({
-      minX: Math.min(bounds.minX, plane.position.x - plane.width / 2),
-      maxX: Math.max(bounds.maxX, plane.position.x + plane.width / 2),
-      maxZ: Math.max(bounds.maxZ, plane.position.z + plane.width / 2),
-    }),
-    { minX: Number.POSITIVE_INFINITY, maxX: Number.NEGATIVE_INFINITY, maxZ: 0 },
-  )
-  const floorWidth = Number.isFinite(wallSpan.minX) ? wallSpan.maxX - wallSpan.minX + 0.4 : 4.2
-  const floorDepth = Math.max(2.4, wallSpan.maxZ + 0.4)
   return [
     ...wallPlanes,
-    {
-      id: previousFloor?.id ?? 'floor-1',
+    buildFittedFloorPlane(wallPlanes, previousPlanes.find((plane) => plane.type === 'floor'), {
+      id: 'floor-1',
       name: '地面 plane',
-      type: 'floor',
-      width: Math.max(previousFloor?.width ?? 0, floorWidth),
-      height: Math.max(previousFloor?.height ?? 0, floorDepth),
       textureUrl: sourceImage?.url,
-      textureEnabled: previousFloor?.textureEnabled ?? Boolean(sourceImage?.url),
-      uvMode: 'auto',
-      position: { x: 0, y: -0.18, z: floorDepth / 2 - 0.2 },
-      rotation: { x: -Math.PI / 2, y: 0, z: 0 },
-    },
+      textureEnabled: Boolean(sourceImage?.url),
+      fallbackWidth: 4.2,
+      fallbackDepth: 2.4,
+      y: -0.18,
+    }),
   ]
 }
 

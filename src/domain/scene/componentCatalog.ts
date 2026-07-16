@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { ComponentPlacementMode, ComponentPropertySchema, ComponentPropertyValue, SceneComponentKind, Vec3 } from './types'
-import { normalizeComponentAssetKey, normalizeComponentAssetUrl, resolveComponentAssetSize } from './componentAssets'
+import type { ComponentPlacementMode, ComponentPropertyModelBinding, ComponentPropertySchema, ComponentPropertyValue, SceneComponentKind, Vec3 } from './types'
+import { componentAssetRegistry, normalizeComponentAssetKey, normalizeComponentAssetUrl, resolveComponentAssetSize } from './componentAssets'
+import { normalizeComponentPropertyModelBinding } from './componentParamEffects'
 
 export type ComponentPlacementGroup = {
   id: ComponentPlacementMode
@@ -51,6 +52,10 @@ export const defaultComponentSubcategories: ComponentSubcategory[] = [
   { id: 'free-props', label: '自由摆件', placement: 'free' },
 ]
 
+function builtinAssetSize(assetKey: keyof typeof componentAssetRegistry): Vec3 {
+  return componentAssetRegistry[assetKey].size ?? { x: 0.46, y: 0.28, z: 0.14 }
+}
+
 export const defaultComponentCatalog: ComponentCatalogItem[] = [
   {
     kind: 'cat-shelf',
@@ -71,6 +76,171 @@ export const defaultComponentCatalog: ComponentCatalogItem[] = [
     ],
   },
   {
+    kind: 'wall-three-step-platform-left',
+    label: '三层跳台-左',
+    detail: '左向墙面组合跳台',
+    icon: 'boxes',
+    placement: 'wall',
+    subcategoryId: 'wall-climb',
+    defaultSize: builtinAssetSize('wall-three-step-platform-left'),
+    defaultRotation: { x: 0, y: 0, z: 0 },
+    fallbackColor: '#e7c49e',
+    assetKey: 'wall-three-step-platform-left',
+    purchaseUrls: [],
+    referencePrice: 369,
+    propertySchema: [
+      { id: 'platformColor', label: '板面颜色', type: 'color', defaultValue: '#e7c49e', modelBinding: { kind: 'material-color' } },
+      { id: 'showSideGuard', label: '侧挡板', type: 'boolean', defaultValue: true, modelBinding: { kind: 'part-visibility', target: 'guard', visibleWhen: true } },
+    ],
+  },
+  {
+    kind: 'wall-three-step-platform-right',
+    label: '三层跳台-右',
+    detail: '右向墙面组合跳台',
+    icon: 'boxes',
+    placement: 'wall',
+    subcategoryId: 'wall-climb',
+    defaultSize: builtinAssetSize('wall-three-step-platform-right'),
+    defaultRotation: { x: 0, y: 0, z: 0 },
+    fallbackColor: '#e7c49e',
+    assetKey: 'wall-three-step-platform-right',
+    purchaseUrls: [],
+    referencePrice: 369,
+    propertySchema: [
+      { id: 'platformColor', label: '板面颜色', type: 'color', defaultValue: '#e7c49e', modelBinding: { kind: 'material-color' } },
+      { id: 'showSideGuard', label: '侧挡板', type: 'boolean', defaultValue: true, modelBinding: { kind: 'part-visibility', target: 'guard', visibleWhen: true } },
+    ],
+  },
+  {
+    kind: 'wall-soft-ladder',
+    label: '软梯',
+    detail: '柔性墙面攀爬梯',
+    icon: 'panel-top',
+    placement: 'wall',
+    subcategoryId: 'wall-climb',
+    defaultSize: builtinAssetSize('wall-soft-ladder'),
+    defaultRotation: { x: 0, y: 0, z: 0 },
+    fallbackColor: '#d8c7aa',
+    assetKey: 'wall-soft-ladder',
+    purchaseUrls: [],
+    referencePrice: 189,
+    propertySchema: [{ id: 'ropeColor', label: '绳体颜色', type: 'color', defaultValue: '#d8c7aa', modelBinding: { kind: 'material-color' } }],
+  },
+  {
+    kind: 'wall-jump-board-medium',
+    label: '中跳板',
+    detail: '墙面单层跳板',
+    icon: 'boxes',
+    placement: 'wall',
+    subcategoryId: 'wall-climb',
+    defaultSize: builtinAssetSize('wall-jump-board-medium'),
+    defaultRotation: { x: 0, y: 0, z: 0 },
+    fallbackColor: '#d9b27e',
+    assetKey: 'wall-jump-board-medium',
+    purchaseUrls: [],
+    referencePrice: 119,
+    propertySchema: [
+      { id: 'boardWidth', label: '板宽', type: 'number', min: 0.22, max: 0.5, step: 0.01, unit: 'm', defaultValue: builtinAssetSize('wall-jump-board-medium').x, modelBinding: { kind: 'size-axis', axis: 'x' } },
+      { id: 'boardColor', label: '板面颜色', type: 'color', defaultValue: '#d9b27e', modelBinding: { kind: 'material-color' } },
+    ],
+  },
+  {
+    kind: 'wall-half-round-board',
+    label: '半圆跳板',
+    detail: '半圆墙面跳台',
+    icon: 'circle',
+    placement: 'wall',
+    subcategoryId: 'wall-climb',
+    defaultSize: builtinAssetSize('wall-half-round-board'),
+    defaultRotation: { x: 0, y: 0, z: 0 },
+    fallbackColor: '#d7bb8f',
+    assetKey: 'wall-half-round-board',
+    purchaseUrls: [],
+    referencePrice: 139,
+    propertySchema: [{ id: 'boardColor', label: '板面颜色', type: 'color', defaultValue: '#d7bb8f', modelBinding: { kind: 'material-color' } }],
+  },
+  {
+    kind: 'wall-four-step-ladder',
+    label: '四层硬梯',
+    detail: '硬质多层攀爬梯',
+    icon: 'boxes',
+    placement: 'wall',
+    subcategoryId: 'wall-climb',
+    defaultSize: builtinAssetSize('wall-four-step-ladder'),
+    defaultRotation: { x: 0, y: 0, z: 0 },
+    fallbackColor: '#e0bb88',
+    assetKey: 'wall-four-step-ladder',
+    purchaseUrls: [],
+    referencePrice: 239,
+    propertySchema: [{ id: 'ladderColor', label: '梯体颜色', type: 'color', defaultValue: '#e0bb88', modelBinding: { kind: 'material-color' } }],
+  },
+  {
+    kind: 'wall-rail-platform',
+    label: '围栏跳台',
+    detail: '带围栏墙面休息台',
+    icon: 'boxes',
+    placement: 'wall',
+    subcategoryId: 'wall-climb',
+    defaultSize: builtinAssetSize('wall-rail-platform'),
+    defaultRotation: { x: 0, y: 0, z: 0 },
+    fallbackColor: '#dfc095',
+    assetKey: 'wall-rail-platform',
+    purchaseUrls: [],
+    referencePrice: 199,
+    propertySchema: [
+      { id: 'platformColor', label: '板面颜色', type: 'color', defaultValue: '#dfc095', modelBinding: { kind: 'material-color' } },
+      { id: 'showRail', label: '显示围栏', type: 'boolean', defaultValue: true, modelBinding: { kind: 'part-visibility', target: 'rail', visibleWhen: true } },
+    ],
+  },
+  {
+    kind: 'wall-post-horizontal',
+    label: '壁挂爬柱横款',
+    detail: '横向墙面磨爪爬柱',
+    icon: 'boxes',
+    placement: 'wall',
+    subcategoryId: 'wall-climb',
+    defaultSize: builtinAssetSize('wall-post-horizontal'),
+    defaultRotation: { x: 0, y: 0, z: 0 },
+    fallbackColor: '#c9a36e',
+    assetKey: 'wall-post-horizontal',
+    purchaseUrls: [],
+    referencePrice: 169,
+    propertySchema: [
+      { id: 'postLength', label: '爬柱长度', type: 'number', min: 0.45, max: 1.2, step: 0.05, unit: 'm', defaultValue: builtinAssetSize('wall-post-horizontal').x, modelBinding: { kind: 'size-axis', axis: 'x' } },
+      { id: 'sisalColor', label: '麻绳颜色', type: 'color', defaultValue: '#c9a36e', modelBinding: { kind: 'material-color' } },
+    ],
+  },
+  {
+    kind: 'wall-cat-house-left',
+    label: '大猫房子-左',
+    detail: '左向墙面猫屋',
+    icon: 'boxes',
+    placement: 'wall',
+    subcategoryId: 'wall-climb',
+    defaultSize: builtinAssetSize('wall-cat-house-left'),
+    defaultRotation: { x: 0, y: 0, z: 0 },
+    fallbackColor: '#dec69f',
+    assetKey: 'wall-cat-house-left',
+    purchaseUrls: [],
+    referencePrice: 499,
+    propertySchema: [{ id: 'houseColor', label: '猫屋颜色', type: 'color', defaultValue: '#dec69f', modelBinding: { kind: 'material-color' } }],
+  },
+  {
+    kind: 'wall-cat-house-right',
+    label: '大猫房子-右',
+    detail: '右向墙面猫屋',
+    icon: 'boxes',
+    placement: 'wall',
+    subcategoryId: 'wall-climb',
+    defaultSize: builtinAssetSize('wall-cat-house-right'),
+    defaultRotation: { x: 0, y: 0, z: 0 },
+    fallbackColor: '#dec69f',
+    assetKey: 'wall-cat-house-right',
+    purchaseUrls: [],
+    referencePrice: 499,
+    propertySchema: [{ id: 'houseColor', label: '猫屋颜色', type: 'color', defaultValue: '#dec69f', modelBinding: { kind: 'material-color' } }],
+  },
+  {
     kind: 'painting',
     label: '挂画',
     detail: '贴墙装饰画',
@@ -84,7 +254,7 @@ export const defaultComponentCatalog: ComponentCatalogItem[] = [
     referencePrice: 59,
     propertySchema: [
       { id: 'frameWidth', label: '画框宽度', type: 'number', min: 0.01, max: 0.08, step: 0.01, unit: 'm', defaultValue: 0.03 },
-      { id: 'matColor', label: '卡纸颜色', type: 'color', defaultValue: '#f8efe1' },
+      { id: 'matColor', label: '卡纸颜色', type: 'color', defaultValue: '#f8efe1', modelBinding: { kind: 'material-color' } },
     ],
   },
   {
@@ -118,7 +288,7 @@ export const defaultComponentCatalog: ComponentCatalogItem[] = [
     referencePrice: 89,
     propertySchema: [
       { id: 'foldDensity', label: '褶皱密度', type: 'number', min: 1, max: 8, step: 1, defaultValue: 4 },
-      { id: 'fabricColor', label: '布料颜色', type: 'color', defaultValue: '#f2e1cf' },
+      { id: 'fabricColor', label: '布料颜色', type: 'color', defaultValue: '#f2e1cf', modelBinding: { kind: 'material-color' } },
     ],
   },
   {
@@ -134,7 +304,7 @@ export const defaultComponentCatalog: ComponentCatalogItem[] = [
     purchaseUrls: [],
     referencePrice: 39,
     propertySchema: [
-      { id: 'bowlDepth', label: '碗深', type: 'number', min: 0.04, max: 0.18, step: 0.01, unit: 'm', defaultValue: 0.08 },
+      { id: 'bowlDepth', label: '碗深', type: 'number', min: 0.06, max: 0.22, step: 0.01, unit: 'm', defaultValue: 0.16, modelBinding: { kind: 'size-axis', axis: 'y' } },
       { id: 'antiSlip', label: '防滑底座', type: 'boolean', defaultValue: true },
     ],
   },
@@ -264,11 +434,17 @@ export function normalizeCatalogItem(component: ComponentCatalogItem, subcategor
     assetUrl,
     purchaseUrls: normalizeUrlList(component.purchaseUrls),
     referencePrice: normalizeOptionalNumber(component.referencePrice),
-    propertySchema: component.propertySchema.map((property) => ({
-      ...property,
-      id: property.id.trim(),
-      label: property.label.trim() || property.id.trim(),
-    })),
+    propertySchema: component.propertySchema.map(normalizePropertySchema),
+  }
+}
+
+function normalizePropertySchema(property: ComponentPropertySchema): ComponentPropertySchema {
+  const id = property.id.trim()
+  return {
+    ...property,
+    id,
+    label: property.label.trim() || id,
+    modelBinding: normalizeComponentPropertyModelBinding(property.modelBinding as ComponentPropertyModelBinding | undefined),
   }
 }
 

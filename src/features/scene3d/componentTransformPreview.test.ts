@@ -1,6 +1,6 @@
 import { Object3D } from 'three'
 import { describe, expect, it } from 'vitest'
-import type { PlaneSpec, SceneComponent } from '../../domain/scene/types'
+import type { ForbiddenZone, PlaneSpec, SceneComponent } from '../../domain/scene/types'
 import { applyConstrainedComponentTransformPreview } from './componentTransformPreview'
 
 const wallPlane: PlaneSpec = {
@@ -37,6 +37,19 @@ const sideWallPlane: PlaneSpec = {
   uvMode: 'auto',
   position: { x: 1.5, y: 1.2, z: 0 },
   rotation: { x: 0, y: Math.PI / 2, z: 0 },
+}
+
+const blockingZone: ForbiddenZone = {
+  id: 'zone-1',
+  name: 'No shelf',
+  planeId: 'wall-1',
+  shape: 'polygon',
+  points: [
+    { x: 0.45, y: -0.2 },
+    { x: 0.95, y: -0.2 },
+    { x: 0.95, y: 0.4 },
+    { x: 0.45, y: 0.4 },
+  ],
 }
 
 describe('applyConstrainedComponentTransformPreview', () => {
@@ -104,6 +117,18 @@ describe('applyConstrainedComponentTransformPreview', () => {
 
     expect(toPlainVec3(object.position)).toEqual({ x: 2, y: 3, z: 4 })
     expect(toPlainVec3(object.rotation)).toEqual({ x: 0.1, y: 0.2, z: 0.3 })
+  })
+
+  it('reverts component preview transforms that enter forbidden zones', () => {
+    const object = new Object3D()
+    const component = wallComponent()
+    object.position.set(0.7, 1.3, 0.14)
+
+    const preview = applyConstrainedComponentTransformPreview(object, component, [wallPlane], [blockingZone])
+
+    expect(preview).toBe(component)
+    expect(toPlainVec3(object.position)).toEqual(component.position)
+    expect(toPlainVec3(object.rotation)).toEqual(component.rotation)
   })
 })
 

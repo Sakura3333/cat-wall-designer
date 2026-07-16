@@ -78,6 +78,21 @@ export type PlaneSpec = {
   rotation: Vec3
 }
 
+export type ForbiddenZoneShape = 'polygon' | 'ellipse'
+
+export type ForbiddenZoneDrawMode = 'select' | 'rectangle' | 'ellipse'
+
+export type ForbiddenZone = {
+  id: string
+  name: string
+  planeId: string
+  shape: ForbiddenZoneShape
+  points?: Vec2[]
+  center?: Vec2
+  radiusX?: number
+  radiusY?: number
+}
+
 export type SceneComponentKind = string
 
 export type ComponentPlacementMode = 'wall' | 'floor' | 'free'
@@ -86,7 +101,7 @@ export type ComponentPlacementWarning = 'component-anchor-clamped' | 'component-
 
 export type ComponentPlacementFeedbackLevel = 'info' | 'warning' | 'error'
 
-export type ComponentPlacementFeedbackReason = 'placed' | 'placement-adjusted' | 'missing-hit' | 'incompatible-surface' | 'missing-plane'
+export type ComponentPlacementFeedbackReason = 'placed' | 'placement-adjusted' | 'missing-hit' | 'incompatible-surface' | 'missing-plane' | 'blocked-by-forbidden-zone' | 'forbidden-zone-over-component'
 
 export type ComponentPlacementFeedback = {
   id: string
@@ -132,6 +147,12 @@ export type ComponentMaterial = {
 
 export type ComponentPropertyValue = string | number | boolean
 
+export type ComponentPropertyModelBinding =
+  | { kind: 'none' }
+  | { kind: 'material-color'; target?: string }
+  | { kind: 'part-visibility'; target: string; visibleWhen?: boolean }
+  | { kind: 'size-axis'; axis: 'x' | 'y' | 'z' }
+
 export type ComponentPropertySchema = {
   id: string
   label: string
@@ -141,6 +162,7 @@ export type ComponentPropertySchema = {
   step?: number
   unit?: string
   defaultValue?: ComponentPropertyValue
+  modelBinding?: ComponentPropertyModelBinding
 }
 
 export type SceneComponent = {
@@ -168,10 +190,12 @@ export type Project = {
   sceneCamera: SceneCameraSpec | null
   polygons: PolygonSpec[]
   planes: PlaneSpec[]
+  forbiddenZones: ForbiddenZone[]
   components: SceneComponent[]
   settings: {
     showFloor: boolean
     sketchBackground: boolean
+    showMeasurements: boolean
   }
 }
 
@@ -199,6 +223,7 @@ export type HistoryEntry =
         from: {
           polygons: PolygonSpec[]
           planes: PlaneSpec[]
+          forbiddenZones: ForbiddenZone[]
           perspectiveCalibration: PerspectiveCalibration | null
           sceneCamera: SceneCameraSpec | null
           selectedId: string | null
@@ -208,6 +233,7 @@ export type HistoryEntry =
         to: {
           polygons: PolygonSpec[]
           planes: PlaneSpec[]
+          forbiddenZones: ForbiddenZone[]
           perspectiveCalibration: PerspectiveCalibration | null
           sceneCamera: SceneCameraSpec | null
           selectedId: string | null
@@ -218,6 +244,10 @@ export type HistoryEntry =
     }
   | { type: 'update-plane'; payload: { id: string; from: Partial<PlaneSpec>; to: Partial<PlaneSpec> } }
   | { type: 'update-component'; payload: { id: string; from: Partial<SceneComponent>; to: Partial<SceneComponent> } }
-  | { type: 'delete-plane'; payload: { plane: PlaneSpec; index: number; selectedId: string | null } }
+  | { type: 'add-forbidden-zone'; payload: { zone: ForbiddenZone } }
+  | { type: 'update-forbidden-zone'; payload: { id: string; from: ForbiddenZone; to: ForbiddenZone } }
+  | { type: 'delete-plane'; payload: { plane: PlaneSpec; index: number; selectedId: string | null; forbiddenZones?: ForbiddenZone[] } }
   | { type: 'delete-component'; payload: { component: SceneComponent; index: number; selectedId: string | null } }
+  | { type: 'delete-forbidden-zone'; payload: { zone: ForbiddenZone; index: number; selectedId: string | null } }
   | { type: 'toggle-floor'; payload: { from: boolean; to: boolean } }
+  | { type: 'toggle-measurements'; payload: { from: boolean; to: boolean } }

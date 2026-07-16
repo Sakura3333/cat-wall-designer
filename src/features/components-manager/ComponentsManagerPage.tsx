@@ -1,15 +1,17 @@
-import { ArrowLeft, Boxes, CopyPlus, Folder, FolderPlus, Pencil, Plus, RotateCcw, Save, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Boxes, CopyPlus, Folder, FolderPlus, Pencil, Plus, RotateCcw, Save, ScanLine, Trash2, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import {
   componentPlacementGroups,
-  defaultComponentCatalog,
   normalizeCatalogItem,
   normalizeSubcategory,
   type ComponentCatalogItem,
   type ComponentSubcategory,
   useComponentCatalogStore,
 } from '../../domain/scene/componentCatalog'
-import type { ComponentPlacementMode, ComponentPropertySchema, ComponentPropertyValue, Vec3 } from '../../domain/scene/types'
+import { componentAssetOptions, validateComponentAssetUrl, type ComponentAssetUrlValidation } from '../../domain/scene/componentAssets'
+import { normalizeComponentPropertyModelBinding } from '../../domain/scene/componentParamEffects'
+import type { ComponentPlacementMode, ComponentPropertyModelBinding, ComponentPropertySchema, ComponentPropertyValue, Vec3 } from '../../domain/scene/types'
+import { ComponentAssetThumbnail } from '../scene3d/ComponentAssetThumbnail'
 
 type TreeSelection =
   | { type: 'placement'; placement: ComponentPlacementMode }
@@ -135,6 +137,10 @@ export function ComponentsManagerPage() {
           <h1>组件管理</h1>
         </div>
         <div className="manager-actions">
+          <a href="/components_manager/ai-cad">
+            <ScanLine size={18} />
+            AI 建模
+          </a>
           <button type="button" onClick={openNewComponent}>
             <Plus size={18} />
             新增组件
@@ -230,7 +236,7 @@ export function ComponentsManagerPage() {
             {visibleComponents.length === 0 && <p className="manager-empty">当前分类下暂无组件。</p>}
             {visibleComponents.map((component) => (
               <article className="component-table-row" key={component.kind}>
-                <span className="component-color" style={{ background: component.fallbackColor }} />
+                <ComponentAssetThumbnail assetKey={component.assetKey} assetUrl={component.assetUrl} color={component.fallbackColor} label={component.label} />
                 <div>
                   <strong>{component.label}</strong>
                   <small>{component.kind}</small>
@@ -300,7 +306,8 @@ function ComponentEditorModal({
   const [localDraft, setLocalDraft] = useState(draft)
   const availableSubcategories = subcategories.filter((subcategory) => subcategory.placement === localDraft.placement)
   const kindExists = components.some((component) => component.kind === localDraft.kind && component.kind !== originalKind)
-  const canSave = localDraft.kind.trim().length > 0 && localDraft.label.trim().length > 0 && !kindExists
+  const assetUrlValidation = validateComponentAssetUrl(localDraft.assetUrl)
+  const canSave = localDraft.kind.trim().length > 0 && localDraft.label.trim().length > 0 && !kindExists && assetUrlValidation.valid
 
   function updatePlacement(placement: ComponentPlacementMode) {
     const nextSubcategory = subcategories.find((subcategory) => subcategory.placement === placement)?.id
@@ -337,10 +344,20 @@ function ComponentEditorModal({
             onChange={(subcategoryId) => setLocalDraft({ ...localDraft, subcategoryId: subcategoryId || undefined })}
           />
           <TextField label="图标 key" value={localDraft.icon} onChange={(icon) => setLocalDraft({ ...localDraft, icon })} />
-          <TextField label="资产 key" value={localDraft.assetKey ?? ''} onChange={(assetKey) => setLocalDraft({ ...localDraft, assetKey })} />
+          <SelectField
+            label="内置资产"
+            value={localDraft.assetKey ?? ''}
+            options={[{ value: '', label: '不使用内置资产' }, ...componentAssetOptions.map((asset) => ({ value: asset.key, label: `${asset.label} · ${asset.key}` }))]}
+            onChange={(assetKey) => setLocalDraft({ ...localDraft, assetKey: assetKey || undefined })}
+          />
           <TextField label="资产 URL" value={localDraft.assetUrl ?? ''} onChange={(assetUrl) => setLocalDraft({ ...localDraft, assetUrl })} />
           <NumberField label="参考价格" value={localDraft.referencePrice ?? 0} min={0} step={1} onChange={(referencePrice) => setLocalDraft({ ...localDraft, referencePrice })} />
           <ColorField label="占位颜色" value={localDraft.fallbackColor} onChange={(fallbackColor) => setLocalDraft({ ...localDraft, fallbackColor })} />
+        </div>
+
+        <div className="manager-asset-preview-row">
+          <ComponentAssetThumbnail assetKey={localDraft.assetKey} assetUrl={assetUrlValidation.valid ? assetUrlValidation.normalizedUrl : localDraft.assetUrl} color={localDraft.fallbackColor} label={localDraft.label || localDraft.kind || '组件'} />
+          <AssetUrlStatus validation={assetUrlValidation} assetKey={localDraft.assetKey} assetUrl={localDraft.assetUrl} />
         </div>
 
         <UrlListField label="购买链接" value={localDraft.purchaseUrls} onChange={(purchaseUrls) => setLocalDraft({ ...localDraft, purchaseUrls })} />
@@ -353,6 +370,7 @@ function ComponentEditorModal({
         <SchemaEditor schema={localDraft.propertySchema} onChange={(propertySchema) => setLocalDraft({ ...localDraft, propertySchema })} />
 
         {kindExists && <p className="manager-error">组件 ID 已存在，请换一个 ID。</p>}
+        {!assetUrlValidation.valid && <p className="manager-error">{assetUrlValidation.message}</p>}
 
         <footer className="manager-savebar">
           <button type="button" onClick={onClose}>
@@ -416,6 +434,19 @@ function SelectField({ label, value, options, onChange }: { label: string; value
   )
 }
 
+function AssetUrlStatus({ validation, assetKey, assetUrl }: { validation: ComponentAssetUrlValidation; assetKey?: string; assetUrl?: string }) {
+  const hasAssetUrl = Boolean(assetUrl?.trim())
+  const assetSourceLabel = assetKey ? '优先使用内置资产；外部 URL 会保留但不会覆盖内置模型。' : hasAssetUrl ? '外部 GLB 会在卡片和 3D 场景中异步加载，失败时回退为占位盒。' : '未选择资产时使用占位盒。'
+
+  return (
+    <div className={validation.valid ? 'asset-url-status valid' : 'asset-url-status invalid'}>
+      <strong>{validation.valid ? '资产状态' : 'URL 校验失败'}</strong>
+      <span>{validation.valid ? assetSourceLabel : validation.message}</span>
+      {validation.valid && validation.normalizedUrl && <code>{validation.normalizedUrl}</code>}
+    </div>
+  )
+}
+
 function VectorField({ label, value, step, onChange }: { label: string; value: Vec3; step: number; onChange: (value: Vec3) => void }) {
   return (
     <section className="manager-vector-field">
@@ -462,6 +493,7 @@ function SchemaEditor({ schema, onChange }: { schema: ComponentPropertySchema[];
         max: 10,
         step: 1,
         defaultValue: 1,
+        modelBinding: { kind: 'none' },
       },
     ])
   }
@@ -498,7 +530,7 @@ function SchemaEditor({ schema, onChange }: { schema: ComponentPropertySchema[];
                 { value: 'color', label: '颜色' },
                 { value: 'text', label: '文本' },
               ]}
-              onChange={(type) => updateProperty(index, { type: type as ComponentPropertySchema['type'], defaultValue: defaultValueForType(type as ComponentPropertySchema['type']) })}
+              onChange={(type) => updateProperty(index, { type: type as ComponentPropertySchema['type'], defaultValue: defaultValueForType(type as ComponentPropertySchema['type']), modelBinding: { kind: 'none' } })}
             />
             {property.type === 'number' && (
               <>
@@ -508,6 +540,7 @@ function SchemaEditor({ schema, onChange }: { schema: ComponentPropertySchema[];
               </>
             )}
             <DefaultValueField property={property} onChange={(defaultValue) => updateProperty(index, { defaultValue })} />
+            <ModelBindingEditor property={property} onChange={(modelBinding) => updateProperty(index, { modelBinding })} />
             <button className="schema-delete" type="button" onClick={() => deleteProperty(index)} aria-label="删除属性">
               <Trash2 size={17} />
             </button>
@@ -516,6 +549,74 @@ function SchemaEditor({ schema, onChange }: { schema: ComponentPropertySchema[];
       </div>
     </section>
   )
+}
+
+function ModelBindingEditor({ property, onChange }: { property: ComponentPropertySchema; onChange: (binding: ComponentPropertyModelBinding) => void }) {
+  const binding = normalizeBindingForProperty(property)
+  const bindingOptions = bindingOptionsForProperty(property.type)
+
+  return (
+    <div className="model-binding-editor">
+      <SelectField
+        label="模型作用"
+        value={binding.kind}
+        options={bindingOptions}
+        onChange={(kind) => onChange(defaultBindingForKind(kind as ComponentPropertyModelBinding['kind'], property))}
+      />
+      {binding.kind === 'material-color' && (
+        <TextField label="材质/部件名" value={binding.target ?? ''} onChange={(target) => onChange({ ...binding, target })} />
+      )}
+      {binding.kind === 'part-visibility' && (
+        <>
+          <TextField label="部件名" value={binding.target} onChange={(target) => onChange({ ...binding, target })} />
+          <SelectField
+            label="可见条件"
+            value={binding.visibleWhen === false ? 'false' : 'true'}
+            options={[
+              { value: 'true', label: '开启时可见' },
+              { value: 'false', label: '关闭时可见' },
+            ]}
+            onChange={(visibleWhen) => onChange({ ...binding, visibleWhen: visibleWhen === 'true' })}
+          />
+        </>
+      )}
+      {binding.kind === 'size-axis' && (
+        <SelectField
+          label="尺寸轴"
+          value={binding.axis}
+          options={[
+            { value: 'x', label: 'X / 宽' },
+            { value: 'y', label: 'Y / 高' },
+            { value: 'z', label: 'Z / 深' },
+          ]}
+          onChange={(axis) => onChange({ kind: 'size-axis', axis: axis as 'x' | 'y' | 'z' })}
+        />
+      )}
+    </div>
+  )
+}
+
+function normalizeBindingForProperty(property: ComponentPropertySchema) {
+  const binding = normalizeComponentPropertyModelBinding(property.modelBinding)
+  if (binding.kind === 'material-color' && property.type !== 'color') return { kind: 'none' } satisfies ComponentPropertyModelBinding
+  if (binding.kind === 'part-visibility' && property.type !== 'boolean') return { kind: 'none' } satisfies ComponentPropertyModelBinding
+  if (binding.kind === 'size-axis' && property.type !== 'number') return { kind: 'none' } satisfies ComponentPropertyModelBinding
+  return binding
+}
+
+function bindingOptionsForProperty(type: ComponentPropertySchema['type']) {
+  const options = [{ value: 'none', label: '无' }]
+  if (type === 'color') options.push({ value: 'material-color', label: '材质颜色' })
+  if (type === 'boolean') options.push({ value: 'part-visibility', label: '部件显隐' })
+  if (type === 'number') options.push({ value: 'size-axis', label: '尺寸轴' })
+  return options
+}
+
+function defaultBindingForKind(kind: ComponentPropertyModelBinding['kind'], property: ComponentPropertySchema): ComponentPropertyModelBinding {
+  if (kind === 'material-color' && property.type === 'color') return { kind: 'material-color' }
+  if (kind === 'part-visibility' && property.type === 'boolean') return { kind: 'part-visibility', target: '', visibleWhen: true }
+  if (kind === 'size-axis' && property.type === 'number') return { kind: 'size-axis', axis: 'x' }
+  return { kind: 'none' }
 }
 
 function DefaultValueField({ property, onChange }: { property: ComponentPropertySchema; onChange: (value: ComponentPropertyValue) => void }) {

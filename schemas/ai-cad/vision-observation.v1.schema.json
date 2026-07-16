@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://psd3.local/schemas/ai-cad/vision-observation.v1.schema.json",
+  "title": "VisionObservationV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "jobId",
+    "sourceImage",
+    "productFamilyCandidates",
+    "dimensionEvidence",
+    "partCandidates",
+    "ambiguities"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "jobId": { "type": "string", "minLength": 1 },
+    "sourceImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileName", "sha256", "widthPx", "heightPx"],
+      "properties": {
+        "fileName": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[a-fA-F0-9]{64}$" },
+        "widthPx": { "type": "integer", "minimum": 1 },
+        "heightPx": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "productFamilyCandidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["family", "confidence"],
+        "properties": {
+          "family": { "type": "string", "minLength": 1 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "dimensionEvidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "label", "valueMm", "axis", "imageRegion", "sourceText", "confidence", "status"],
+        "properties": {
+          "id": { "$ref": "#/$defs/stableId" },
+          "kind": {
+            "enum": [
+              "overall-width",
+              "overall-height",
+              "overall-depth",
+              "part-width",
+              "part-height",
+              "part-depth",
+              "diameter",
+              "thickness",
+              "hole-diameter",
+              "distance",
+              "unknown"
+            ]
+          },
+          "label": { "type": "string", "minLength": 1 },
+          "valueMm": { "type": "number", "exclusiveMinimum": 0 },
+          "axis": { "enum": ["x", "y", "z", "diameter", "none"] },
+          "imageRegion": { "$ref": "#/$defs/imageRegion" },
+          "sourceText": { "type": "string", "minLength": 1 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "status": { "enum": ["proposed", "confirmed", "rejected"] },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "partCandidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "kind", "label", "visible", "confidence"],
+        "properties": {
+          "id": { "$ref": "#/$defs/stableId" },
+          "kind": {
+            "enum": ["panel", "box", "cylinder", "hemisphere", "curved-panel", "support", "soft-part", "unknown"]
+          },
+          "label": { "type": "string", "minLength": 1 },
+          "imagePolygon": {
+            "type": "array",
+            "minItems": 3,
+            "items": { "$ref": "#/$defs/imagePoint" }
+          },
+          "visible": { "type": "boolean" },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "ambiguities": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "severity", "requiredResolution"],
+        "properties": {
+          "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+          "message": { "type": "string", "minLength": 1 },
+          "severity": { "enum": ["info", "warning", "blocking"] },
+          "requiredResolution": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "stableId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "normalizedCoordinate": { "type": "number", "minimum": 0, "maximum": 1 },
+    "imagePoint": {
+      "type": "array",
+      "prefixItems": [
+        { "$ref": "#/$defs/normalizedCoordinate" },
+        { "$ref": "#/$defs/normalizedCoordinate" }
+      ],
+      "items": false,
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "imageRegion": {
+      "type": "array",
+      "prefixItems": [
+        { "$ref": "#/$defs/normalizedCoordinate" },
+        { "$ref": "#/$defs/normalizedCoordinate" },
+        { "$ref": "#/$defs/normalizedCoordinate" },
+        { "$ref": "#/$defs/normalizedCoordinate" }
+      ],
+      "items": false,
+      "minItems": 4,
+      "maxItems": 4
+    }
+  }
+}

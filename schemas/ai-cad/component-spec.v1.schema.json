@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://psd3.local/schemas/ai-cad/component-spec.v1.schema.json",
+  "title": "ComponentSpecV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "revision",
+    "unit",
+    "name",
+    "family",
+    "placement",
+    "overallSizeMm",
+    "parts",
+    "holes",
+    "assumptions"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "revision": { "type": "integer", "minimum": 1 },
+    "unit": { "const": "mm" },
+    "name": { "type": "string", "minLength": 1 },
+    "family": { "type": "string", "minLength": 1 },
+    "placement": { "enum": ["wall", "floor", "free"] },
+    "overallSizeMm": { "$ref": "#/$defs/positiveVec3" },
+    "parts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "label", "shape", "sizeMm", "sizeStatus", "hardConstraint", "materialRole"],
+        "properties": {
+          "id": { "$ref": "#/$defs/stableId" },
+          "label": { "type": "string", "minLength": 1 },
+          "shape": {
+            "enum": ["rect-panel", "round-panel", "box", "cylinder", "hemisphere", "curved-panel", "soft-template"]
+          },
+          "sizeMm": { "$ref": "#/$defs/positiveVec3" },
+          "sizeStatus": { "enum": ["proposed", "confirmed", "defaulted"] },
+          "hardConstraint": { "type": "boolean" },
+          "materialRole": { "type": "string", "minLength": 1 },
+          "notes": { "type": "string" }
+        }
+      }
+    },
+    "holes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "partId", "centerMm", "axis", "diameterMm", "through", "source", "status"],
+        "properties": {
+          "id": { "$ref": "#/$defs/stableId" },
+          "partId": { "$ref": "#/$defs/stableId" },
+          "centerMm": { "$ref": "#/$defs/vec3" },
+          "axis": { "$ref": "#/$defs/unitAxis" },
+          "diameterMm": { "type": "number", "exclusiveMinimum": 0 },
+          "depthMm": { "type": "number", "exclusiveMinimum": 0 },
+          "through": { "type": "boolean" },
+          "source": { "enum": ["user", "image-dimension", "engineering-drawing", "template"] },
+          "status": { "enum": ["proposed", "confirmed", "rejected"] }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field", "reason", "severity"],
+        "properties": {
+          "field": { "type": "string", "minLength": 1 },
+          "reason": { "type": "string", "minLength": 1 },
+          "severity": { "enum": ["info", "warning", "blocking"] }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "stableId": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+    "vec3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" }
+      }
+    },
+    "positiveVec3": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": { "type": "number", "exclusiveMinimum": 0 },
+        "y": { "type": "number", "exclusiveMinimum": 0 },
+        "z": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    },
+    "unitAxis": {
+      "oneOf": [
+        { "const": { "x": 1, "y": 0, "z": 0 } },
+        { "const": { "x": -1, "y": 0, "z": 0 } },
+        { "const": { "x": 0, "y": 1, "z": 0 } },
+        { "const": { "x": 0, "y": -1, "z": 0 } },
+        { "const": { "x": 0, "y": 0, "z": 1 } },
+        { "const": { "x": 0, "y": 0, "z": -1 } }
+      ]
+    }
+  }
+}

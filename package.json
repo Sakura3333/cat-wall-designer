@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -b && vite build",
+    "cad:worker:sample": "tsx workers/cad-worker/runLocal.ts --spec fixtures/ai-cad/compiler/phase-zero-panel/component-spec.json --plan fixtures/ai-cad/compiler/phase-zero-panel/modeling-plan.json --out .ai-cad-work/phase-zero-panel",
     "preview": "vite preview --host 127.0.0.1",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -14,6 +15,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
+    "ajv": "^8.20.0",
     "lucide-react": "^0.468.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
@@ -22,9 +24,11 @@
     "zustand": "^5.0.9"
   },
   "devDependencies": {
+    "@types/node": "^24.13.3",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.2",
+    "tsx": "^4.23.0",
     "typescript": "^5.9.3",
     "vite": "^7.3.0",
     "vitest": "^4.1.9"

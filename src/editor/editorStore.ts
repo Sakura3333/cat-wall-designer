@@ -2,10 +2,13 @@ import { create } from 'zustand'
 import { buildPlanes } from '../domain/geometry/buildPlanes'
 import { buildPolygons } from '../domain/geometry/buildPolygons'
 import { buildPerspectiveRoom } from '../domain/geometry/perspective'
+import { reflowRoomPlanes } from '../domain/geometry/planeLayout'
 import { buildWallTemplatePlanes } from '../domain/geometry/wallTemplates'
 import { createDefaultComponentParams, getComponentCatalogItem, getComponentLabel } from '../domain/scene/componentCatalog'
 import { buildComponentPlacement, constrainComponentTransform, projectBoundComponentOntoPlane, transformBoundComponentWithPlane } from '../domain/scene/componentPlacement'
-import type { ComponentPlacementFeedback, ComponentPlacementFeedbackReason, ComponentPlacementHit, ComponentPlacementMode, ComponentPlacementWarning, CornerKind, CornerPoint, EditorMode, HistoryEntry, PendingComponentPlacement, PerspectiveAxis, PerspectiveGuideLine, PlaneSpec, PlaneType, Project, RulerPoint, SceneComponent, SceneComponentKind, SourceImage, TransformMode, Vec2, WallTemplateKind } from '../domain/scene/types'
+import { resolveComponentSizeFromParams } from '../domain/scene/componentParamEffects'
+import { buildForbiddenZoneFromDrag, filterForbiddenZonesForPlanes, findBlockingComponentForForbiddenZone, findBlockingForbiddenZone } from '../domain/scene/forbiddenZones'
+import type { ComponentPlacementFeedback, ComponentPlacementFeedbackReason, ComponentPlacementHit, ComponentPlacementMode, ComponentPlacementWarning, CornerKind, CornerPoint, EditorMode, ForbiddenZone, ForbiddenZoneDrawMode, ForbiddenZoneShape, HistoryEntry, PendingComponentPlacement, PerspectiveAxis, PerspectiveGuideLine, PlaneSpec, PlaneType, Project, RulerPoint, SceneComponent, SceneComponentKind, SourceImage, TransformMode, Vec2, WallTemplateKind } from '../domain/scene/types'
 
 type EditorStore = {
   project: Project
@@ -14,6 +17,7 @@ type EditorStore = {
   activeCategory: string
   activePerspectiveAxis: PerspectiveAxis
   transformMode: TransformMode
+  forbiddenZoneDrawMode: ForbiddenZoneDrawMode
   history: HistoryEntry[]
   future: HistoryEntry[]
   geometryErrors: string[]
@@ -22,6 +26,7 @@ type EditorStore = {
   loadProject: (project: Project) => void
   setSourceImage: (sourceImage: SourceImage) => void
   clearSourceImage: () => void
+  clearDraft: () => void
   setMode: (mode: EditorMode) => void
   addCorner: (point: Vec2, kind?: CornerKind) => void
   deleteCorner: (id: string) => void
@@ -41,7 +46,11 @@ type EditorStore = {
   buildGeometry: () => void
   applyWallTemplate: (kind: WallTemplateKind) => void
   toggleFloor: (value: boolean) => void
+  toggleMeasurements: (value: boolean) => void
   setTransformMode: (mode: TransformMode) => void
+  setForbiddenZoneDrawMode: (mode: ForbiddenZoneDrawMode) => void
+  forbiddenZonesLocked: boolean
+  setForbiddenZonesLocked: (locked: boolean) => void
   updatePlaneSize: (id: string, field: 'width' | 'height', value: number) => void
   updatePlaneTextureMapping: (id: string, enabled: boolean) => void
   updatePlaneTransform: (id: string, patch: Partial<Pick<PlaneSpec, 'position' | 'rotation'>>) => void
@@ -50,6 +59,8 @@ type EditorStore = {
   selectSceneObject: (id: string | null) => void
   deleteSelectedSceneObject: () => void
   setActiveCategory: (category: string) => void
+  addForbiddenZone: (planeId: string, shape: ForbiddenZoneShape, start: Vec2, end: Vec2) => void
+  updateForbiddenZone: (id: string, zone: ForbiddenZone) => void
   requestComponentPlacement: (kind: SceneComponentKind, clientPoint: Vec2 | null) => void
   consumeComponentPlacement: (id: string) => void
   clearComponentPlacementFeedback: () => void
@@ -67,10 +78,12 @@ const initialProject: Project = {
   sceneCamera: null,
   polygons: [],
   planes: [],
+  forbiddenZones: [],
   components: [],
   settings: {
     showFloor: true,
     sketchBackground: true,
+    showMeasurements: true,
   },
 }
 
@@ -80,6 +93,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   selectedId: null,
   activeCategory: 'wall',
   transformMode: 'select',
+  forbiddenZoneDrawMode: 'select',
+  forbiddenZonesLocked: true,
   history: [],
   future: [],
   geometryErrors: [],
@@ -94,6 +109,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       activeCategory: 'wall',
       activePerspectiveAxis: 'left',
       transformMode: 'select',
+      forbiddenZoneDrawMode: 'select',
+      forbiddenZonesLocked: true,
       history: [],
       future: [],
       geometryErrors: [],
@@ -102,10 +119,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }),
   setSourceImage: (sourceImage) =>
     set((state) => ({
-      project: { ...state.project, sourceImage, corners: [], ruler: null, perspectiveGuides: [], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [], components: [] },
+      project: { ...state.project, sourceImage, corners: [], ruler: null, perspectiveGuides: [], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [], forbiddenZones: [], components: [] },
       mode: 'marking-perspective',
       selectedId: null,
       transformMode: 'select',
+      forbiddenZoneDrawMode: 'select',
+      forbiddenZonesLocked: true,
       geometryErrors: [],
       pendingComponentPlacement: null,
       componentPlacementFeedback: null,
@@ -114,21 +133,51 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     })),
   clearSourceImage: () =>
     set((state) => ({
-      project: { ...state.project, sourceImage: null, corners: [], ruler: null, perspectiveGuides: [], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [], components: [] },
+      project: { ...state.project, sourceImage: null, corners: [], ruler: null, perspectiveGuides: [], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [], forbiddenZones: [], components: [] },
       mode: 'empty',
       selectedId: null,
       transformMode: 'select',
+      forbiddenZoneDrawMode: 'select',
+      forbiddenZonesLocked: true,
       geometryErrors: [],
       pendingComponentPlacement: null,
       componentPlacementFeedback: null,
       history: [],
       future: [],
     })),
+  clearDraft: () =>
+    set((state) => ({
+      project: {
+        ...state.project,
+        sourceImage: null,
+        corners: [],
+        ruler: null,
+        perspectiveGuides: [],
+        perspectiveCalibration: null,
+        sceneCamera: null,
+        polygons: [],
+        planes: [],
+        forbiddenZones: [],
+        components: [],
+      },
+      mode: 'empty',
+      selectedId: null,
+      activeCategory: 'wall',
+      activePerspectiveAxis: 'left',
+      transformMode: 'select',
+      forbiddenZoneDrawMode: 'select',
+      forbiddenZonesLocked: true,
+      history: [],
+      future: [],
+      geometryErrors: [],
+      pendingComponentPlacement: null,
+      componentPlacementFeedback: null,
+    })),
   setMode: (mode) => set({ mode }),
   addCorner: (point, kind = 'wall') => {
     const corner: CornerPoint = { id: `corner-${Date.now()}-${Math.round(point.x)}-${Math.round(point.y)}`, x: point.x, y: point.y, kind }
     set((state) => ({
-      project: { ...state.project, corners: [...state.project.corners, corner], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [] },
+      project: { ...state.project, corners: [...state.project.corners, corner], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [], forbiddenZones: [] },
       mode: 'marking-corners',
       history: [...state.history, { type: 'add-corner', payload: corner }],
       future: [],
@@ -149,6 +198,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         sceneCamera: null,
         polygons: [],
         planes: [],
+        forbiddenZones: [],
       },
       mode: state.project.sourceImage ? 'marking-corners' : 'empty',
       selectedId: null,
@@ -168,6 +218,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         sceneCamera: null,
         polygons: [],
         planes: [],
+        forbiddenZones: [],
       },
       history: [...state.history, { type: 'move-corner', payload: { id, from: { x: from.x, y: from.y }, to } }],
       future: [],
@@ -198,7 +249,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       points,
     }
     set((state) => ({
-      project: { ...state.project, perspectiveGuides: [...state.project.perspectiveGuides, guide], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [] },
+      project: { ...state.project, perspectiveGuides: [...state.project.perspectiveGuides, guide], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [], forbiddenZones: [] },
       mode: 'marking-perspective',
       activePerspectiveAxis: axis,
       future: [],
@@ -214,7 +265,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         points: [start, end],
       }
       return {
-        project: { ...state.project, perspectiveGuides: [...state.project.perspectiveGuides, guide], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [] },
+        project: { ...state.project, perspectiveGuides: [...state.project.perspectiveGuides, guide], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [], forbiddenZones: [] },
         mode: 'marking-perspective',
         future: [],
         geometryErrors: [],
@@ -234,6 +285,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         sceneCamera: null,
         polygons: [],
         planes: [],
+        forbiddenZones: [],
       },
       mode: 'marking-perspective',
       geometryErrors: [],
@@ -247,6 +299,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         sceneCamera: null,
         polygons: [],
         planes: [],
+        forbiddenZones: [],
       },
       mode: 'marking-perspective',
       selectedId: null,
@@ -337,19 +390,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
   resetCorners: () =>
     set((state) => ({
-      project: { ...state.project, corners: [], perspectiveGuides: [], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [], components: [] },
+      project: { ...state.project, corners: [], perspectiveGuides: [], perspectiveCalibration: null, sceneCamera: null, polygons: [], planes: [], forbiddenZones: [], components: [] },
       mode: state.project.sourceImage ? 'marking-perspective' : 'empty',
       selectedId: null,
       history: [],
       future: [],
       geometryErrors: [],
       componentPlacementFeedback: null,
+      forbiddenZoneDrawMode: 'select',
+      forbiddenZonesLocked: true,
     })),
   buildGeometry: () => {
     const { project, selectedId, mode, geometryErrors } = get()
     const perspectiveResult = buildPerspectiveRoom(project.sourceImage, project.perspectiveGuides, project.ruler, true, project.planes)
     const result = perspectiveResult.layout ? { polygons: [], errors: perspectiveResult.errors } : buildPolygons(project.corners, project.sourceImage)
     const planes = perspectiveResult.layout?.planes ?? buildPlanes(result.polygons, project.sourceImage, true, project.planes)
+    const forbiddenZones = filterForbiddenZonesForPlanes(project.forbiddenZones, planes)
     const nextMode = planes.length ? 'editing-planes' : project.sourceImage ? 'marking-perspective' : 'empty'
     const nextSelectedId = planes.find((plane) => plane.type === 'wall')?.id ?? null
     set({
@@ -357,6 +413,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         ...project,
         polygons: result.polygons,
         planes,
+        forbiddenZones,
         perspectiveCalibration: perspectiveResult.layout?.calibration ?? null,
         sceneCamera: perspectiveResult.layout?.camera ?? null,
         settings: { ...project.settings, showFloor: true },
@@ -373,6 +430,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             from: {
               polygons: project.polygons,
               planes: project.planes,
+              forbiddenZones: project.forbiddenZones,
               perspectiveCalibration: project.perspectiveCalibration,
               sceneCamera: project.sceneCamera,
               selectedId,
@@ -382,6 +440,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             to: {
               polygons: result.polygons,
               planes,
+              forbiddenZones,
               perspectiveCalibration: perspectiveResult.layout?.calibration ?? null,
               sceneCamera: perspectiveResult.layout?.camera ?? null,
               selectedId: nextSelectedId,
@@ -397,6 +456,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   applyWallTemplate: (kind) => {
     const { project, selectedId, mode, geometryErrors } = get()
     const planes = buildWallTemplatePlanes(kind, project.sourceImage, true, project.planes)
+    const forbiddenZones = filterForbiddenZonesForPlanes(project.forbiddenZones, planes)
     const nextSelectedId = planes.find((plane) => plane.type === 'wall')?.id ?? null
     const nextMode: EditorMode = 'editing-planes'
 
@@ -405,6 +465,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         ...project,
         polygons: [],
         planes,
+        forbiddenZones,
         perspectiveCalibration: null,
         sceneCamera: null,
         settings: { ...project.settings, showFloor: true },
@@ -421,6 +482,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             from: {
               polygons: project.polygons,
               planes: project.planes,
+              forbiddenZones: project.forbiddenZones,
               perspectiveCalibration: project.perspectiveCalibration,
               sceneCamera: project.sceneCamera,
               selectedId,
@@ -430,6 +492,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             to: {
               polygons: [],
               planes,
+              forbiddenZones,
               perspectiveCalibration: null,
               sceneCamera: null,
               selectedId: nextSelectedId,
@@ -449,10 +512,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         ...state.project,
         settings: { ...state.project.settings, showFloor: value },
       }
+      const planes = project.sceneCamera ? buildPerspectiveRoom(project.sourceImage, project.perspectiveGuides, project.ruler, value, project.planes).layout?.planes ?? project.planes : buildPlanes(project.polygons, project.sourceImage, value, project.planes)
       return {
         project: {
           ...project,
-          planes: project.sceneCamera ? buildPerspectiveRoom(project.sourceImage, project.perspectiveGuides, project.ruler, value, project.planes).layout?.planes ?? project.planes : buildPlanes(project.polygons, project.sourceImage, value, project.planes),
+          planes,
+          forbiddenZones: filterForbiddenZonesForPlanes(project.forbiddenZones, planes),
         },
         mode: project.polygons.length ? 'floor-optional' : state.mode,
         history: [...state.history, { type: 'toggle-floor', payload: { from: previous, to: value } }],
@@ -460,15 +525,23 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       }
     })
   },
+  toggleMeasurements: (value) => {
+    const previous = get().project.settings.showMeasurements ?? true
+    set((state) => ({
+      project: {
+        ...state.project,
+        settings: { ...state.project.settings, showMeasurements: value },
+      },
+      history: [...state.history, { type: 'toggle-measurements', payload: { from: previous, to: value } }],
+      future: [],
+    }))
+  },
   updatePlaneSize: (id, field, value) =>
     set((state) => {
       const plane = state.project.planes.find((item) => item.id === id)
       if (!plane) return state
       return {
-        project: {
-          ...state.project,
-          planes: state.project.planes.map((item) => (item.id === id ? { ...item, [field]: value } : item)),
-        },
+        project: applyPlanePatch(state.project, id, { [field]: value }),
         history: [...state.history, { type: 'update-plane', payload: { id, from: { [field]: plane[field] }, to: { [field]: value } } }],
         future: [],
       }
@@ -478,16 +551,65 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const plane = state.project.planes.find((item) => item.id === id)
       if (!plane) return state
       return {
-        project: {
-          ...state.project,
-          planes: state.project.planes.map((item) => (item.id === id ? { ...item, textureEnabled: enabled } : item)),
-        },
+        project: applyPlanePatch(state.project, id, { textureEnabled: enabled }),
         history: [...state.history, { type: 'update-plane', payload: { id, from: { textureEnabled: plane.textureEnabled }, to: { textureEnabled: enabled } } }],
         future: [],
       }
     }),
   selectPlane: (id) => set({ selectedId: id }),
   setActiveCategory: (category) => set({ activeCategory: category }),
+  addForbiddenZone: (planeId, shape, start, end) =>
+    set((state) => {
+      const plane = state.project.planes.find((item) => item.id === planeId)
+      if (!plane) return state
+      const zone = buildForbiddenZoneFromDrag({
+        id: `forbidden-zone-${Date.now()}`,
+        name: `${plane.type === 'wall' ? '墙面' : '地面'}禁止区 ${state.project.forbiddenZones.length + 1}`,
+        planeId,
+        shape,
+        start,
+        end,
+      })
+      const blockingComponent = findBlockingComponentForForbiddenZone(zone, state.project.components, state.project.planes)
+      if (blockingComponent) {
+        return {
+          componentPlacementFeedback: buildForbiddenZoneFeedback(plane, blockingComponent),
+        }
+      }
+
+      return {
+        project: {
+          ...state.project,
+          forbiddenZones: [...state.project.forbiddenZones, zone],
+        },
+        selectedId: zone.id,
+        forbiddenZoneDrawMode: 'select',
+        transformMode: 'select',
+        history: [...state.history, { type: 'add-forbidden-zone', payload: { zone } }],
+        future: [],
+      }
+    }),
+  updateForbiddenZone: (id, zone) =>
+    set((state) => {
+      const current = state.project.forbiddenZones.find((item) => item.id === id)
+      if (!current) return state
+      const nextZone = { ...zone, id }
+      const plane = state.project.planes.find((item) => item.id === nextZone.planeId)
+      const blockingComponent = findBlockingComponentForForbiddenZone(nextZone, state.project.components, state.project.planes)
+      if (blockingComponent && plane) {
+        return {
+          componentPlacementFeedback: buildForbiddenZoneFeedback(plane, blockingComponent),
+        }
+      }
+      return {
+        project: {
+          ...state.project,
+          forbiddenZones: state.project.forbiddenZones.map((item) => (item.id === id ? nextZone : item)),
+        },
+        history: [...state.history, { type: 'update-forbidden-zone', payload: { id, from: current, to: nextZone } }],
+        future: [],
+      }
+    }),
   requestComponentPlacement: (kind, clientPoint) =>
     set({
       pendingComponentPlacement: {
@@ -504,7 +626,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set((state) => {
       const catalogItem = getComponentCatalogItem(kind)
       const placementMode = catalogItem?.placement ?? 'free'
-      const size = catalogItem?.defaultSize ?? { x: 0.46, y: 0.28, z: 0.14 }
+      const params = createDefaultComponentParams(kind)
+      const size = resolveComponentSizeFromParams(catalogItem?.defaultSize ?? { x: 0.46, y: 0.28, z: 0.14 }, catalogItem?.propertySchema ?? [], params)
       const defaultRotation = catalogItem?.defaultRotation ?? { x: 0, y: 0, z: 0 }
       const placementResult = buildComponentPlacement(
         {
@@ -531,6 +654,36 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       }
 
       const componentId = `component-${Date.now()}`
+      const nextComponent: SceneComponent = {
+        id: componentId,
+        kind,
+        name: getComponentLabel(kind),
+        targetPlaneId: placementResult.placement.targetPlaneId,
+        placement: placementResult.placement,
+        position: placementResult.position,
+        rotation: placementResult.rotation,
+        scale: { x: 1, y: 1, z: 1 },
+        size,
+        material: { color: catalogItem?.fallbackColor },
+        params,
+      }
+      const blockingZone = findBlockingForbiddenZone(nextComponent, state.project.planes, state.project.forbiddenZones)
+      if (blockingZone) {
+        return {
+          componentPlacementFeedback: buildPlacementFeedback({
+            project: state.project,
+            kind,
+            requestedPlacement: placementMode,
+            hit,
+            targetPlaneId: placementResult.placement.targetPlaneId,
+            level: 'error',
+            reason: 'blocked-by-forbidden-zone',
+            warnings: [],
+            blockedZoneName: blockingZone.name,
+          }),
+        }
+      }
+
       const placementFeedback = buildPlacementFeedback({
         project: state.project,
         kind,
@@ -545,40 +698,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return {
         project: {
           ...state.project,
-          components: [
-            ...state.project.components,
-            {
-              id: componentId,
-              kind,
-              name: getComponentLabel(kind),
-              targetPlaneId: placementResult.placement.targetPlaneId,
-              placement: placementResult.placement,
-              position: placementResult.position,
-              rotation: placementResult.rotation,
-              scale: { x: 1, y: 1, z: 1 },
-              size,
-              material: { color: catalogItem?.fallbackColor },
-              params: createDefaultComponentParams(kind),
-            },
-          ],
+          components: [...state.project.components, nextComponent],
         },
         selectedId: componentId,
         mode: 'dragging-components',
         componentPlacementFeedback: placementFeedback,
       }
     }),
-  setTransformMode: (mode) => set({ transformMode: mode }),
+  setTransformMode: (mode) => set({ transformMode: mode, forbiddenZoneDrawMode: 'select' }),
+  setForbiddenZoneDrawMode: (mode) => set({ forbiddenZoneDrawMode: mode, transformMode: 'select' }),
+  setForbiddenZonesLocked: (locked) => set({ forbiddenZonesLocked: locked }),
   updatePlaneTransform: (id, patch) =>
     set((state) => {
       const plane = state.project.planes.find((item) => item.id === id)
       if (!plane) return state
-      const nextPlane = { ...plane, ...patch }
       return {
-        project: {
-          ...state.project,
-          planes: state.project.planes.map((item) => (item.id === id ? nextPlane : item)),
-          components: state.project.components.map((component) => transformBoundComponentWithPlane(component, plane, nextPlane)),
-        },
+        project: applyPlanePatch(state.project, id, patch),
         history: [...state.history, { type: 'update-plane', payload: { id, from: { position: plane.position, rotation: plane.rotation }, to: patch } }],
         future: [],
       }
@@ -588,15 +723,39 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const component = state.project.components.find((item) => item.id === id)
       if (!component) return state
       const catalogItem = getComponentCatalogItem(component.kind)
-      const constrainedPatch = constrainComponentTransform(component, patch, state.project.planes, {
+      const patchWithParamSize =
+        patch.params && !patch.size
+          ? {
+              ...patch,
+              size: resolveComponentSizeFromParams(component.size ?? catalogItem?.defaultSize ?? { x: 0.46, y: 0.28, z: 0.14 }, catalogItem?.propertySchema ?? [], patch.params),
+            }
+          : patch
+      const constrainedPatch = constrainComponentTransform(component, patchWithParamSize, state.project.planes, {
         defaultSize: catalogItem?.defaultSize,
         defaultRotation: catalogItem?.defaultRotation,
       })
+      const nextComponent = { ...component, ...constrainedPatch }
+      const blockingZone = findBlockingForbiddenZone(nextComponent, state.project.planes, state.project.forbiddenZones)
+      if (blockingZone) {
+        return {
+          componentPlacementFeedback: buildPlacementFeedback({
+            project: state.project,
+            kind: component.kind,
+            requestedPlacement: component.placement?.mode ?? catalogItem?.placement ?? 'free',
+            hit: null,
+            targetPlaneId: nextComponent.placement?.targetPlaneId ?? nextComponent.targetPlaneId,
+            level: 'error',
+            reason: 'blocked-by-forbidden-zone',
+            warnings: [],
+            blockedZoneName: blockingZone.name,
+          }),
+        }
+      }
       const from = pickComponentPatch(component, constrainedPatch)
       return {
         project: {
           ...state.project,
-          components: state.project.components.map((item) => (item.id === id ? { ...item, ...constrainedPatch } : item)),
+          components: state.project.components.map((item) => (item.id === id ? nextComponent : item)),
         },
         history: [...state.history, { type: 'update-component', payload: { id, from, to: constrainedPatch } }],
         future: [],
@@ -622,18 +781,37 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         }
       }
 
+      const forbiddenZoneIndex = state.project.forbiddenZones.findIndex((item) => item.id === state.selectedId)
+      const forbiddenZone = state.project.forbiddenZones[forbiddenZoneIndex]
+      if (forbiddenZone) {
+        return {
+          project: {
+            ...state.project,
+            forbiddenZones: state.project.forbiddenZones.filter((item) => item.id !== forbiddenZone.id),
+          },
+          selectedId: null,
+          transformMode: 'select',
+          forbiddenZoneDrawMode: 'select',
+          history: [...state.history, { type: 'delete-forbidden-zone', payload: { zone: forbiddenZone, index: forbiddenZoneIndex, selectedId: state.selectedId } }],
+          future: [],
+        }
+      }
+
       const planeIndex = state.project.planes.findIndex((item) => item.id === state.selectedId)
       const plane = state.project.planes[planeIndex]
       if (!plane || plane.type === 'floor') return state
+      const removedForbiddenZones = state.project.forbiddenZones.filter((item) => item.planeId === plane.id)
 
       return {
         project: {
           ...state.project,
           planes: state.project.planes.filter((item) => item.id !== plane.id),
+          forbiddenZones: state.project.forbiddenZones.filter((item) => item.planeId !== plane.id),
         },
         selectedId: null,
         transformMode: 'select',
-        history: [...state.history, { type: 'delete-plane', payload: { plane, index: planeIndex, selectedId: state.selectedId } }],
+        forbiddenZoneDrawMode: 'select',
+        history: [...state.history, { type: 'delete-plane', payload: { plane, index: planeIndex, selectedId: state.selectedId, forbiddenZones: removedForbiddenZones } }],
         future: [],
       }
     }),
@@ -650,6 +828,7 @@ function applyHistoryEntry(state: EditorStore, entry: HistoryEntry, direction: '
         sceneCamera: null,
         polygons: [],
         planes: [],
+        forbiddenZones: [],
       },
       geometryErrors: [],
     }
@@ -669,6 +848,7 @@ function applyHistoryEntry(state: EditorStore, entry: HistoryEntry, direction: '
         sceneCamera: null,
         polygons: [],
         planes: [],
+        forbiddenZones: [],
       },
       geometryErrors: [],
     }
@@ -684,6 +864,7 @@ function applyHistoryEntry(state: EditorStore, entry: HistoryEntry, direction: '
         sceneCamera: null,
         polygons: [],
         planes: [],
+        forbiddenZones: [],
       },
       geometryErrors: [],
     }
@@ -695,10 +876,22 @@ function applyHistoryEntry(state: EditorStore, entry: HistoryEntry, direction: '
       ...state.project,
       settings: { ...state.project.settings, showFloor: value },
     }
+    const planes = project.sceneCamera ? buildPerspectiveRoom(project.sourceImage, project.perspectiveGuides, project.ruler, value, project.planes).layout?.planes ?? project.planes : buildPlanes(project.polygons, project.sourceImage, value, project.planes)
     return {
       project: {
         ...project,
-        planes: project.sceneCamera ? buildPerspectiveRoom(project.sourceImage, project.perspectiveGuides, project.ruler, value, project.planes).layout?.planes ?? project.planes : buildPlanes(project.polygons, project.sourceImage, value, project.planes),
+        planes,
+        forbiddenZones: filterForbiddenZonesForPlanes(project.forbiddenZones, planes),
+      },
+    }
+  }
+
+  if (entry.type === 'toggle-measurements') {
+    const value = redo ? entry.payload.to : entry.payload.from
+    return {
+      project: {
+        ...state.project,
+        settings: { ...state.project.settings, showMeasurements: value },
       },
     }
   }
@@ -710,6 +903,7 @@ function applyHistoryEntry(state: EditorStore, entry: HistoryEntry, direction: '
         ...state.project,
         polygons: snapshot.polygons,
         planes: snapshot.planes,
+        forbiddenZones: snapshot.forbiddenZones,
         perspectiveCalibration: snapshot.perspectiveCalibration,
         sceneCamera: snapshot.sceneCamera,
       },
@@ -721,6 +915,7 @@ function applyHistoryEntry(state: EditorStore, entry: HistoryEntry, direction: '
 
   if (entry.type === 'delete-plane') {
     const planes = [...state.project.planes]
+    const removedForbiddenZones = entry.payload.forbiddenZones ?? []
     if (!redo) {
       planes.splice(entry.payload.index, 0, entry.payload.plane)
     }
@@ -729,9 +924,13 @@ function applyHistoryEntry(state: EditorStore, entry: HistoryEntry, direction: '
       project: {
         ...state.project,
         planes: redo ? state.project.planes.filter((plane) => plane.id !== entry.payload.plane.id) : planes,
+        forbiddenZones: redo
+          ? state.project.forbiddenZones.filter((zone) => zone.planeId !== entry.payload.plane.id)
+          : mergeForbiddenZones(state.project.forbiddenZones, removedForbiddenZones),
       },
       selectedId: redo ? null : entry.payload.selectedId,
       transformMode: 'select',
+      forbiddenZoneDrawMode: 'select',
     }
   }
 
@@ -751,6 +950,46 @@ function applyHistoryEntry(state: EditorStore, entry: HistoryEntry, direction: '
     }
   }
 
+  if (entry.type === 'add-forbidden-zone') {
+    return {
+      project: {
+        ...state.project,
+        forbiddenZones: redo ? [...state.project.forbiddenZones, entry.payload.zone] : state.project.forbiddenZones.filter((zone) => zone.id !== entry.payload.zone.id),
+      },
+      selectedId: redo ? entry.payload.zone.id : null,
+      forbiddenZoneDrawMode: 'select',
+      transformMode: 'select',
+    }
+  }
+
+  if (entry.type === 'delete-forbidden-zone') {
+    const forbiddenZones = [...state.project.forbiddenZones]
+    if (!redo) {
+      forbiddenZones.splice(entry.payload.index, 0, entry.payload.zone)
+    }
+
+    return {
+      project: {
+        ...state.project,
+        forbiddenZones: redo ? state.project.forbiddenZones.filter((zone) => zone.id !== entry.payload.zone.id) : forbiddenZones,
+      },
+      selectedId: redo ? null : entry.payload.selectedId,
+      forbiddenZoneDrawMode: 'select',
+      transformMode: 'select',
+    }
+  }
+
+  if (entry.type === 'update-forbidden-zone') {
+    const zone = redo ? entry.payload.to : entry.payload.from
+    return {
+      project: {
+        ...state.project,
+        forbiddenZones: state.project.forbiddenZones.map((item) => (item.id === entry.payload.id ? zone : item)),
+      },
+      selectedId: entry.payload.id,
+    }
+  }
+
   const value = redo ? entry.payload.to : entry.payload.from
   if (entry.type === 'update-component') {
     return {
@@ -764,13 +1003,8 @@ function applyHistoryEntry(state: EditorStore, entry: HistoryEntry, direction: '
   if (entry.type === 'update-plane') {
     const currentPlane = state.project.planes.find((plane) => plane.id === entry.payload.id)
     if (!currentPlane) return state
-    const nextPlane = { ...currentPlane, ...value }
     return {
-      project: {
-        ...state.project,
-        planes: state.project.planes.map((plane) => (plane.id === entry.payload.id ? nextPlane : plane)),
-        components: state.project.components.map((component) => transformBoundComponentWithPlane(component, currentPlane, nextPlane)),
-      },
+      project: applyPlanePatch(state.project, entry.payload.id, value),
     }
   }
 
@@ -790,9 +1024,67 @@ function pickComponentPatch(component: SceneComponent, patch: Partial<SceneCompo
   return from
 }
 
+function mergeForbiddenZones(current: ForbiddenZone[], restored: ForbiddenZone[]) {
+  const currentIds = new Set(current.map((zone) => zone.id))
+  return [...current, ...restored.filter((zone) => !currentIds.has(zone.id))]
+}
+
+function applyPlanePatch(project: Project, id: string, patch: Partial<PlaneSpec>): Project {
+  const previousPlanes = project.planes
+  const editedPlane = previousPlanes.find((plane) => plane.id === id)
+  const patchedPlanes = previousPlanes.map((plane) => (plane.id === id ? { ...plane, ...patch } : plane))
+  const nextPlanes = editedPlane?.type === 'floor' ? patchedPlanes : reflowRoomPlanes(patchedPlanes)
+  const previousById = new Map(previousPlanes.map((plane) => [plane.id, plane]))
+  const changedPairs = nextPlanes
+    .map((nextPlane) => {
+      const previousPlane = previousById.get(nextPlane.id)
+      return previousPlane && planeGeometryChanged(previousPlane, nextPlane) ? { previousPlane, nextPlane } : null
+    })
+    .filter((pair): pair is { previousPlane: PlaneSpec; nextPlane: PlaneSpec } => Boolean(pair))
+
+  if (changedPairs.length === 0) {
+    return {
+      ...project,
+      planes: nextPlanes,
+    }
+  }
+
+  return {
+    ...project,
+    planes: nextPlanes,
+    components: project.components.map((component) =>
+      changedPairs.reduce((nextComponent, pair) => transformBoundComponentWithPlane(nextComponent, pair.previousPlane, pair.nextPlane), component),
+    ),
+  }
+}
+
+function planeGeometryChanged(previousPlane: PlaneSpec, nextPlane: PlaneSpec) {
+  return (
+    previousPlane.width !== nextPlane.width ||
+    previousPlane.height !== nextPlane.height ||
+    JSON.stringify(previousPlane.position) !== JSON.stringify(nextPlane.position) ||
+    JSON.stringify(previousPlane.rotation) !== JSON.stringify(nextPlane.rotation)
+  )
+}
+
 function normalizePlacementFailureReason(reason: string): ComponentPlacementFeedbackReason {
   if (reason === 'missing-hit' || reason === 'incompatible-surface' || reason === 'missing-plane') return reason
   return 'missing-hit'
+}
+
+function buildForbiddenZoneFeedback(plane: PlaneSpec, blockedComponent: SceneComponent): ComponentPlacementFeedback {
+  return {
+    id: `forbidden-zone-feedback-${Date.now()}`,
+    level: 'error',
+    reason: 'forbidden-zone-over-component',
+    componentKind: 'forbidden-zone',
+    requestedPlacement: plane.type,
+    targetPlaneId: plane.id,
+    warnings: [],
+    title: '无法创建禁区',
+    message: `禁区不能覆盖已有组件“${blockedComponent.name || getComponentLabel(blockedComponent.kind)}”。`,
+    details: [`目标：${plane.name}`, '请避开组件占用范围后重新绘制'],
+  }
 }
 
 function buildPlacementFeedback({
@@ -804,6 +1096,7 @@ function buildPlacementFeedback({
   level,
   reason,
   warnings,
+  blockedZoneName,
 }: {
   project: Project
   kind: SceneComponentKind
@@ -813,13 +1106,14 @@ function buildPlacementFeedback({
   level: ComponentPlacementFeedback['level']
   reason: ComponentPlacementFeedbackReason
   warnings: ComponentPlacementWarning[]
+  blockedZoneName?: string
 }): ComponentPlacementFeedback {
   const componentLabel = getComponentLabel(kind)
   const requestedLabel = placementModeLabel(requestedPlacement)
   const hitLabel = hit ? planeTypeLabel(hit.planeType) : undefined
   const targetPlane = targetPlaneId ? project.planes.find((plane) => plane.id === targetPlaneId) : undefined
   const targetLabel = targetPlane?.name ?? targetPlaneId
-  const details = buildPlacementDetails(reason, requestedLabel, hitLabel, targetLabel, warnings)
+  const details = buildPlacementDetails(reason, requestedLabel, hitLabel, targetLabel, warnings, blockedZoneName)
 
   return {
     id: `component-placement-feedback-${Date.now()}`,
@@ -831,7 +1125,7 @@ function buildPlacementFeedback({
     targetPlaneId,
     warnings,
     title: placementFeedbackTitle(level),
-    message: placementFeedbackMessage(reason, componentLabel, requestedLabel, hitLabel, targetLabel),
+    message: placementFeedbackMessage(reason, componentLabel, requestedLabel, hitLabel, targetLabel, blockedZoneName),
     details: details.length > 0 ? details : undefined,
   }
 }
@@ -842,17 +1136,19 @@ function placementFeedbackTitle(level: ComponentPlacementFeedback['level']) {
   return '组件已放置'
 }
 
-function placementFeedbackMessage(reason: ComponentPlacementFeedbackReason, componentLabel: string, requestedLabel: string, hitLabel?: string, targetLabel?: string) {
+function placementFeedbackMessage(reason: ComponentPlacementFeedbackReason, componentLabel: string, requestedLabel: string, hitLabel?: string, targetLabel?: string, blockedZoneName?: string) {
   if (reason === 'missing-hit') return `${componentLabel} 没有命中可放置的模型表面，未创建组件。`
   if (reason === 'incompatible-surface') return `${componentLabel} 需要放在${requestedLabel}，当前命中的是${hitLabel ?? '不支持的表面'}，未创建组件。`
   if (reason === 'missing-plane') return `${componentLabel} 命中的 plane 不在当前场景中，未创建组件。`
+  if (reason === 'blocked-by-forbidden-zone') return `${componentLabel} 与禁止区域${blockedZoneName ? `「${blockedZoneName}」` : ''}重叠，已阻止摆放。`
   if (reason === 'placement-adjusted') return `${componentLabel} 已放置到${targetLabel ?? requestedLabel}，并按边界自动调整。`
   return `${componentLabel} 已放置到${targetLabel ?? requestedLabel}。`
 }
 
-function buildPlacementDetails(reason: ComponentPlacementFeedbackReason, requestedLabel: string, hitLabel: string | undefined, targetLabel: string | undefined, warnings: ComponentPlacementWarning[]) {
+function buildPlacementDetails(reason: ComponentPlacementFeedbackReason, requestedLabel: string, hitLabel: string | undefined, targetLabel: string | undefined, warnings: ComponentPlacementWarning[], blockedZoneName?: string) {
   const details: string[] = []
   if (targetLabel) details.push(`绑定对象：${targetLabel}`)
+  if (reason === 'blocked-by-forbidden-zone' && blockedZoneName) details.push(`禁止区域：${blockedZoneName}`)
   if (reason === 'incompatible-surface') {
     details.push(`需要：${requestedLabel}`)
     if (hitLabel) details.push(`命中：${hitLabel}`)
@@ -879,16 +1175,20 @@ function planeTypeLabel(type: PlaneType) {
 }
 
 function normalizeBoundComponentAttachments(project: Project): Project {
-  if (project.planes.length === 0 || project.components.length === 0) return project
+  const normalizedProject = {
+    ...project,
+    forbiddenZones: filterForbiddenZonesForPlanes(project.forbiddenZones, project.planes),
+  }
+  if (normalizedProject.planes.length === 0 || normalizedProject.components.length === 0) return normalizedProject
 
   return {
-    ...project,
-    components: project.components.map((component) => {
+    ...normalizedProject,
+    components: normalizedProject.components.map((component) => {
       const mode = component.placement?.mode
       const targetPlaneId = component.placement?.targetPlaneId
       if (!mode || mode === 'free' || !targetPlaneId) return component
 
-      const plane = project.planes.find((item) => item.id === targetPlaneId && item.type === mode)
+      const plane = normalizedProject.planes.find((item) => item.id === targetPlaneId && item.type === mode)
       if (!plane) return component
 
       const catalogItem = getComponentCatalogItem(component.kind)

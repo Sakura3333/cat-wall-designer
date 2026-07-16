@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "revision": 1,
+  "unit": "mm",
+  "name": "Phase 0 双孔板件",
+  "family": "single-panel",
+  "placement": "wall",
+  "overallSizeMm": { "x": 400, "y": 200, "z": 18 },
+  "parts": [
+    {
+      "id": "main-panel",
+      "label": "主板",
+      "shape": "rect-panel",
+      "sizeMm": { "x": 400, "y": 200, "z": 18 },
+      "sizeStatus": "confirmed",
+      "hardConstraint": true,
+      "materialRole": "wood-primary"
+    }
+  ],
+  "holes": [
+    {
+      "id": "mount-hole-left",
+      "partId": "main-panel",
+      "centerMm": { "x": -150, "y": 60, "z": 0 },
+      "axis": { "x": 0, "y": 0, "z": 1 },
+      "diameterMm": 8,
+      "through": true,
+      "source": "user",
+      "status": "confirmed"
+    },
+    {
+      "id": "mount-hole-right",
+      "partId": "main-panel",
+      "centerMm": { "x": 150, "y": 60, "z": 0 },
+      "axis": { "x": 0, "y": 0, "z": 1 },
+      "diameterMm": 8,
+      "through": true,
+      "source": "user",
+      "status": "confirmed"
+    }
+  ],
+  "assumptions": []
+}

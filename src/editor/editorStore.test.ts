@@ -36,10 +36,12 @@ const baseProject: Project = {
       rotation: { x: -Math.PI / 2, y: 0, z: 0 },
     },
   ],
+  forbiddenZones: [],
   components: [],
   settings: {
     showFloor: true,
     sketchBackground: true,
+    showMeasurements: true,
   },
 }
 
@@ -62,6 +64,8 @@ describe('editorStore component placement requests', () => {
       selectedId: null,
       mode: 'geometry-built',
       transformMode: 'select',
+      forbiddenZoneDrawMode: 'select',
+      forbiddenZonesLocked: true,
       pendingComponentPlacement: null,
       history: [],
       future: [],
@@ -86,6 +90,39 @@ describe('editorStore component placement requests', () => {
     expect(useEditorStore.getState().pendingComponentPlacement).toBeNull()
   })
 
+  it('clears the current draft and restores zone editing to locked', () => {
+    useEditorStore.getState().addForbiddenZone('wall-1', 'polygon', { x: -0.4, y: 0.8 }, { x: 0.4, y: 1.4 })
+    useEditorStore.getState().setForbiddenZonesLocked(false)
+    useEditorStore.getState().requestComponentPlacement('cat-shelf', { x: 42, y: 24 })
+
+    useEditorStore.getState().clearDraft()
+
+    const state = useEditorStore.getState()
+    expect(state.project.id).toBe('test-project')
+    expect(state.project.name).toBe('Test Project')
+    expect(state.project.sourceImage).toBeNull()
+    expect(state.project.planes).toEqual([])
+    expect(state.project.forbiddenZones).toEqual([])
+    expect(state.project.components).toEqual([])
+    expect(state.mode).toBe('empty')
+    expect(state.selectedId).toBeNull()
+    expect(state.forbiddenZoneDrawMode).toBe('select')
+    expect(state.forbiddenZonesLocked).toBe(true)
+    expect(state.pendingComponentPlacement).toBeNull()
+    expect(state.history).toEqual([])
+    expect(state.future).toEqual([])
+  })
+
+  it('keeps forbidden zones locked by default and allows explicit unlock', () => {
+    expect(useEditorStore.getState().forbiddenZonesLocked).toBe(true)
+
+    useEditorStore.getState().setForbiddenZonesLocked(false)
+    expect(useEditorStore.getState().forbiddenZonesLocked).toBe(false)
+
+    useEditorStore.getState().loadProject(baseProject)
+    expect(useEditorStore.getState().forbiddenZonesLocked).toBe(true)
+  })
+
   it('uses a matching raycast hit when adding a wall component', () => {
     useEditorStore.getState().addComponent('cat-shelf', {
       planeId: 'wall-1',
@@ -104,6 +141,100 @@ describe('editorStore component placement requests', () => {
       targetPlaneId: 'wall-1',
       anchor: { x: 0.4, y: 1.3, z: 0.05 },
       normal: { x: 0, y: 0, z: 1 },
+    })
+  })
+
+  it('creates and edits forbidden zones with undo and redo', () => {
+    useEditorStore.getState().addForbiddenZone('wall-1', 'polygon', { x: -0.4, y: 0.8 }, { x: 0.4, y: 1.4 })
+
+    const zone = useEditorStore.getState().project.forbiddenZones[0]
+    expect(zone).toMatchObject({
+      planeId: 'wall-1',
+      shape: 'polygon',
+    })
+    expect(useEditorStore.getState().selectedId).toBe(zone.id)
+
+    const updated = {
+      ...zone,
+      points: zone.points?.map((point) => ({ x: point.x + 0.1, y: point.y })),
+    }
+    useEditorStore.getState().updateForbiddenZone(zone.id, updated)
+    expect(useEditorStore.getState().project.forbiddenZones[0].points?.[0].x).toBeCloseTo(-0.3)
+
+    useEditorStore.getState().undo()
+    expect(useEditorStore.getState().project.forbiddenZones[0]).toEqual(zone)
+
+    useEditorStore.getState().redo()
+    expect(useEditorStore.getState().project.forbiddenZones[0]).toEqual(updated)
+  })
+
+  it('rejects component placement inside a forbidden zone', () => {
+    useEditorStore.getState().addForbiddenZone('wall-1', 'polygon', { x: -0.3, y: -0.3 }, { x: 0.3, y: 0.3 })
+
+    useEditorStore.getState().addComponent('cat-shelf', {
+      planeId: 'wall-1',
+      planeType: 'wall',
+      point: { x: 0, y: 1.3, z: 0.02 },
+      normal: { x: 0, y: 0, z: 1 },
+      surface: 'front',
+    })
+
+    const state = useEditorStore.getState()
+    expect(state.project.components).toHaveLength(0)
+    expect(state.componentPlacementFeedback).toMatchObject({
+      level: 'error',
+      reason: 'blocked-by-forbidden-zone',
+      componentKind: 'cat-shelf',
+    })
+  })
+
+  it('rejects forbidden zone creation over an existing component footprint', () => {
+    useEditorStore.getState().addComponent('cat-shelf', {
+      planeId: 'wall-1',
+      planeType: 'wall',
+      point: { x: 0, y: 1.2, z: 0.02 },
+      normal: { x: 0, y: 0, z: 1 },
+      surface: 'front',
+    })
+
+    useEditorStore.getState().addForbiddenZone('wall-1', 'polygon', { x: -0.3, y: -0.3 }, { x: 0.3, y: 0.3 })
+
+    const state = useEditorStore.getState()
+    expect(state.project.components).toHaveLength(1)
+    expect(state.project.forbiddenZones).toHaveLength(0)
+    expect(state.componentPlacementFeedback).toMatchObject({
+      level: 'error',
+      reason: 'forbidden-zone-over-component',
+      title: '无法创建禁区',
+    })
+  })
+
+  it('rejects forbidden zone edits that overlap an existing component footprint', () => {
+    useEditorStore.getState().addComponent('cat-shelf', {
+      planeId: 'wall-1',
+      planeType: 'wall',
+      point: { x: 0, y: 1.2, z: 0.02 },
+      normal: { x: 0, y: 0, z: 1 },
+      surface: 'front',
+    })
+    useEditorStore.getState().addForbiddenZone('wall-1', 'polygon', { x: 0.6, y: 0.6 }, { x: 0.9, y: 0.9 })
+    const originalZone = useEditorStore.getState().project.forbiddenZones[0]
+
+    useEditorStore.getState().updateForbiddenZone(originalZone.id, {
+      ...originalZone,
+      points: [
+        { x: -0.3, y: -0.3 },
+        { x: 0.3, y: -0.3 },
+        { x: 0.3, y: 0.3 },
+        { x: -0.3, y: 0.3 },
+      ],
+    })
+
+    const state = useEditorStore.getState()
+    expect(state.project.forbiddenZones[0]).toEqual(originalZone)
+    expect(state.componentPlacementFeedback).toMatchObject({
+      level: 'error',
+      reason: 'forbidden-zone-over-component',
     })
   })
 

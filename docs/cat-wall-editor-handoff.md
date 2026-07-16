@@ -1,5 +1,7 @@
 # 在线猫墙编辑器交接文档
 
+> **2026-07-16 状态说明：** 本文是更早的总交接文档，很多当前状态已经过期。最新交接入口请看 `docs/cat-wall-editor-handoff-2026-07-16.md`。
+
 > 2026-07-01 更新：本文保留早期“四点角点生成墙面”的交接记录，部分描述已经过期。当前版本已经改为“透视标线 + 模板 + 3D 变换编辑”工作流。新的编辑器交接入口请优先阅读 `docs/cat-wall-editor-handoff-2026-07-01.md`；当前实现摘要也已追加到 `docs/cat-wall-editor-dev-spec.md` 的第 14 节。
 >
 > 2026-07-04 更新：组件系统已经新增 `/components_manager` 管理页、独立组件 catalog、三大放置规则和组件属性字段。组件与场景互动的详细开发交接请阅读 `docs/cat-wall-component-system-handoff-2026-07-04.md`。

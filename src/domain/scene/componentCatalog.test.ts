@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createDefaultComponentParams,
+  defaultComponentCatalog,
   defaultComponentSubcategories,
   normalizeCatalogItem,
   type ComponentCatalogItem,
@@ -43,7 +44,7 @@ describe('normalizeCatalogItem', () => {
       purchaseUrls: [],
       referencePrice: 299,
     })
-    expect(normalized.propertySchema).toEqual([{ id: 'accentColor', label: 'accentColor', type: 'color', defaultValue: '#f8efe1' }])
+    expect(normalized.propertySchema).toEqual([{ id: 'accentColor', label: 'accentColor', type: 'color', defaultValue: '#f8efe1', modelBinding: { kind: 'none' } }])
   })
 
   it('keeps non-empty purchase URLs after trimming blank rows', () => {
@@ -64,6 +65,10 @@ describe('normalizeCatalogItem', () => {
     )
 
     expect(normalized.purchaseUrls).toEqual(['https://example.com/a', 'https://example.com/b'])
+  })
+
+  it('ships real built-in wall assets as catalog components', () => {
+    expect(defaultComponentCatalog.map((component) => component.assetKey)).toEqual(expect.arrayContaining(['wall-three-step-platform-left', 'wall-soft-ladder', 'wall-cat-house-right']))
   })
 })
 

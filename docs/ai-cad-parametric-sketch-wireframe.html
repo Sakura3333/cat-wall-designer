@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI CAD 参数化三视图线框稿</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 100%; min-height: 100%; margin: 0; }
+    body { padding: 14px; background: #f3f3f3; color: #222; font: 13px/1.4 Arial, "Microsoft YaHei", sans-serif; }
+    button, input { font: inherit; }
+    button { min-height: 32px; border: 1px solid #777; background: #fff; cursor: pointer; }
+    .app { min-width: 1120px; min-height: calc(100vh - 28px); display: grid; grid-template-rows: 58px minmax(0, 1fr) 42px; border: 1px solid #555; background: #fafafa; }
+    .topbar { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 14px; padding: 8px 10px; border-bottom: 1px solid #777; }
+    .title { display: grid; gap: 1px; }
+    .title strong { font-size: 17px; }
+    .title small, .muted { color: #666; }
+    .actions { display: flex; gap: 7px; }
+    .actions .primary, .footer .primary { background: #222; color: #fff; }
+    .workspace { min-height: 0; display: grid; grid-template-columns: 230px minmax(640px, 1fr) 270px; }
+    .sidebar, .inspector { min-height: 0; overflow: auto; padding: 10px; }
+    .sidebar { border-right: 1px solid #999; }
+    .inspector { border-left: 1px solid #999; }
+    .label { margin: 0 0 6px; color: #666; font-size: 10px; font-weight: 700; text-transform: uppercase; }
+    .source { width: 100%; aspect-ratio: 1; object-fit: cover; border: 1px solid #888; background: #ddd; }
+    .evidence { margin-top: 10px; display: grid; gap: 5px; }
+    .evidence div { display: grid; grid-template-columns: 1fr auto; padding: 6px 7px; border: 1px solid #aaa; background: #fff; }
+    .part-list { margin-top: 14px; display: grid; gap: 4px; }
+    .part { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 6px; padding: 7px; border: 1px solid #aaa; background: #fff; }
+    .part.active { border: 2px solid #222; padding: 6px; }
+    .swatch { width: 12px; height: 12px; border: 1px solid #555; background: #ddd; }
+    .canvas-area { min-width: 0; min-height: 0; display: grid; grid-template-rows: 42px minmax(0, 1fr); padding: 10px; gap: 8px; }
+    .toolbar { display: flex; align-items: center; gap: 5px; padding: 5px; border: 1px solid #888; background: #fff; }
+    .toolbar button { width: 34px; padding: 0; font-weight: 700; }
+    .toolbar .divider { width: 1px; height: 24px; margin: 0 3px; background: #aaa; }
+    .toolbar .zoom { margin-left: auto; width: auto; padding: 0 9px; }
+    .views { min-height: 0; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 8px; }
+    .view { position: relative; min-width: 0; min-height: 240px; overflow: hidden; border: 1px solid #777; background-color: #fff; background-image: linear-gradient(#e6e6e6 1px, transparent 1px), linear-gradient(90deg, #e6e6e6 1px, transparent 1px); background-size: 20px 20px; }
+    .view h2 { position: absolute; z-index: 2; top: 7px; left: 9px; margin: 0; padding: 2px 6px; background: #fff; font-size: 12px; }
+    .view svg { width: 100%; height: 100%; display: block; }
+    .shape { fill: #eee; stroke: #555; stroke-width: 2; }
+    .selected { fill: #ddd; stroke: #111; stroke-width: 3; }
+    .capsule { fill: none; stroke: #777; stroke-width: 3; }
+    .dim { stroke: #333; stroke-width: 1.5; }
+    .dim-text { fill: #111; font-size: 12px; font-weight: 700; paint-order: stroke; stroke: #fff; stroke-width: 5px; }
+    .handle { fill: #fff; stroke: #111; stroke-width: 2; }
+    .axis { stroke: #999; stroke-width: 1; stroke-dasharray: 5 5; }
+    .preview { background: #ececec; }
+    .preview .floor { fill: #ddd; stroke: #777; }
+    .preview .solid { fill: #cfcfcf; stroke: #333; stroke-width: 2; }
+    .preview .glass { fill: rgba(255,255,255,.25); stroke: #666; stroke-width: 2; }
+    .section { margin-bottom: 14px; }
+    .section h3 { margin: 0 0 7px; font-size: 14px; }
+    .field { display: grid; grid-template-columns: 72px minmax(0, 1fr) 28px; align-items: center; gap: 5px; margin-bottom: 6px; }
+    .field input { width: 100%; min-width: 0; height: 30px; border: 1px solid #888; padding: 0 7px; background: #fff; }
+    .segmented { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3px; }
+    .segmented button.active { background: #222; color: #fff; }
+    .constraints { display: grid; gap: 5px; }
+    .constraint { display: grid; grid-template-columns: 18px 1fr auto; align-items: center; gap: 6px; padding: 6px; border: 1px solid #aaa; background: #fff; }
+    .warning { padding: 8px; border: 1px solid #777; background: #eee; }
+    .footer { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 12px; padding: 5px 10px; border-top: 1px solid #777; background: #fff; }
+    .status { display: flex; align-items: center; gap: 12px; }
+    .status b { padding: 3px 7px; border: 1px solid #777; }
+    .footer button { padding: 0 12px; }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <button type="button">← 组件管理</button>
+      <div class="title"><strong>太空舱组件 · 参数化草图</strong><small>AI 草稿 v1 · 三视图联动 · 单位 mm</small></div>
+      <div class="actions"><button type="button">撤销</button><button type="button">重做</button><button type="button">保存草稿</button><button class="primary" type="button">确认草图</button></div>
+    </header>
+
+    <section class="workspace">
+      <aside class="sidebar">
+        <p class="label">Source image</p>
+        <img class="source" src="./Phase%200组件样本/太空舱直径30.jpg" alt="太空舱商品图">
+        <div class="evidence">
+          <div><span>整体宽度</span><b>400</b></div>
+          <div><span>标注高度</span><b>200</b></div>
+          <div><span>舱体直径</span><b>300</b></div>
+        </div>
+        <div class="part-list">
+          <p class="label">Parts · 5</p>
+          <div class="part active"><span class="swatch"></span><strong>墙面背板</strong><small>板件</small></div>
+          <div class="part"><span class="swatch"></span><span>水平承托板</span><small>板件</small></div>
+          <div class="part"><span class="swatch"></span><span>左侧支撑板</span><small>板件</small></div>
+          <div class="part"><span class="swatch"></span><span>右侧支撑板</span><small>板件</small></div>
+          <div class="part"><span class="swatch"></span><span>透明太空舱</span><small>半球</small></div>
+          <button type="button">＋ 添加受支持形状</button>
+        </div>
+      </aside>
+
+      <section class="canvas-area">
+        <nav class="toolbar" aria-label="草图工具栏">
+          <button type="button" title="选择">↖</button><button type="button" title="板件">▭</button><button type="button" title="圆">○</button><button type="button" title="圆弧">⌒</button><button type="button" title="施工孔">⊙</button><span class="divider"></span><button type="button" title="尺寸">↔</button><button type="button" title="镜像">◫</button><button type="button" title="对齐">≡</button><button type="button" title="删除">×</button><button class="zoom" type="button">适应视图</button>
+        </nav>
+
+        <div class="views">
+          <article class="view"><h2>正视图 · X/Y</h2><svg viewBox="0 0 500 320" role="img" aria-label="正视图">
+            <line class="axis" x1="250" y1="35" x2="250" y2="300"/><line class="axis" x1="60" y1="175" x2="450" y2="175"/>
+            <rect class="selected" x="100" y="80" width="300" height="160"/><rect class="shape" x="100" y="220" width="300" height="25"/><rect class="shape" x="100" y="80" width="22" height="165"/><rect class="shape" x="378" y="80" width="22" height="165"/><circle class="capsule" cx="250" cy="165" r="90"/>
+            <line class="dim" x1="100" y1="265" x2="400" y2="265"/><line class="dim" x1="100" y1="255" x2="100" y2="275"/><line class="dim" x1="400" y1="255" x2="400" y2="275"/><text class="dim-text" x="236" y="285">400</text>
+            <line class="dim" x1="420" y1="80" x2="420" y2="240"/><line class="dim" x1="410" y1="80" x2="430" y2="80"/><line class="dim" x1="410" y1="240" x2="430" y2="240"/><text class="dim-text" x="432" y="165">200</text>
+            <rect class="handle" x="94" y="74" width="12" height="12"/><rect class="handle" x="394" y="74" width="12" height="12"/><rect class="handle" x="94" y="234" width="12" height="12"/><rect class="handle" x="394" y="234" width="12" height="12"/>
+          </svg></article>
+
+          <article class="view"><h2>右视图 · Z/Y</h2><svg viewBox="0 0 500 320" role="img" aria-label="右视图">
+            <line class="axis" x1="250" y1="35" x2="250" y2="300"/><line class="axis" x1="70" y1="175" x2="430" y2="175"/>
+            <rect class="selected" x="120" y="80" width="22" height="160"/><rect class="shape" x="120" y="220" width="250" height="25"/><path class="capsule" d="M 142 90 A 110 110 0 0 1 142 230"/><rect class="shape" x="345" y="80" width="25" height="165"/>
+            <line class="dim" x1="120" y1="265" x2="370" y2="265"/><line class="dim" x1="120" y1="255" x2="120" y2="275"/><line class="dim" x1="370" y1="255" x2="370" y2="275"/><text class="dim-text" x="230" y="285">深度待确认</text>
+          </svg></article>
+
+          <article class="view"><h2>俯视图 · X/Z</h2><svg viewBox="0 0 500 320" role="img" aria-label="俯视图">
+            <line class="axis" x1="250" y1="30" x2="250" y2="290"/><line class="axis" x1="60" y1="160" x2="450" y2="160"/>
+            <rect class="selected" x="100" y="120" width="300" height="22"/><rect class="shape" x="100" y="120" width="300" height="120"/><path class="capsule" d="M 160 142 A 90 90 0 0 0 340 142"/>
+            <line class="dim" x1="100" y1="265" x2="400" y2="265"/><line class="dim" x1="100" y1="255" x2="100" y2="275"/><line class="dim" x1="400" y1="255" x2="400" y2="275"/><text class="dim-text" x="236" y="285">400</text>
+          </svg></article>
+
+          <article class="view preview"><h2>实时 3D 预览</h2><svg viewBox="0 0 500 320" role="img" aria-label="三维预览">
+            <polygon class="floor" points="65,250 275,145 445,225 230,300"/>
+            <polygon class="solid" points="140,95 315,60 315,220 140,255"/><polygon class="solid" points="140,230 315,195 410,235 230,275"/><polygon class="solid" points="315,60 345,72 345,225 315,220"/>
+            <path class="glass" d="M 255 205 C 185 180 190 105 260 90 C 330 75 390 120 390 175 C 390 220 335 235 255 205 Z"/>
+            <circle class="shape" cx="165" cy="150" r="6"/><circle class="shape" cx="165" cy="190" r="6"/>
+          </svg></article>
+        </div>
+      </section>
+
+      <aside class="inspector">
+        <div class="section"><p class="label">Selected part</p><h3>墙面背板</h3><div class="segmented"><button class="active">板件</button><button>圆柱</button><button>半球</button></div></div>
+        <div class="section"><h3>尺寸</h3><label class="field"><span>X · 宽</span><input value="400"><small>mm</small></label><label class="field"><span>Y · 高</span><input value="200"><small>mm</small></label><label class="field"><span>Z · 厚</span><input value="18"><small>mm</small></label></div>
+        <div class="section"><h3>中心位置</h3><label class="field"><span>X</span><input value="0"><small>mm</small></label><label class="field"><span>Y</span><input value="0"><small>mm</small></label><label class="field"><span>Z</span><input value="0"><small>mm</small></label></div>
+        <div class="section"><h3>约束</h3><div class="constraints"><div class="constraint"><input type="checkbox" checked><span>与组件中心对齐</span><small>已满足</small></div><div class="constraint"><input type="checkbox" checked><span>与承托板共面</span><small>已满足</small></div><div class="constraint"><input type="checkbox"><span>左右支撑镜像</span><small>建议</small></div></div></div>
+        <div class="section"><h3>尺寸来源</h3><div class="warning"><b>400 mm</b> 来自商品图标注，已确认。<br><b>200 mm</b> 的范围仍需确认。</div></div>
+        <button type="button">删除选中部件</button>
+      </aside>
+    </section>
+
+    <footer class="footer"><div class="status"><b>3 个阻断项</b><span>整体深度、200 mm 标注范围、施工孔位尚未确认</span></div><button class="primary" type="button">生成 ComponentSpec →</button></footer>
+  </main>
+</body>
+</html>

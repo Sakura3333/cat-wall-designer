@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildOriginalAssetTransform, componentAssetRegistry, normalizeComponentAssetKey, normalizeComponentAssetUrl, resolveComponentAssetSize, resolveComponentAssetSource } from './componentAssets'
+import { buildOriginalAssetTransform, componentAssetOptions, componentAssetRegistry, normalizeComponentAssetKey, normalizeComponentAssetUrl, resolveComponentAssetSize, resolveComponentAssetSource, validateComponentAssetUrl } from './componentAssets'
 
 describe('component asset registry', () => {
   it('resolves built-in asset keys before external URLs', () => {
@@ -23,9 +23,22 @@ describe('component asset registry', () => {
     expect(normalizeComponentAssetUrl('https://example.com/model.obj')).toBeUndefined()
   })
 
+  it('explains rejected external asset URLs', () => {
+    expect(validateComponentAssetUrl('models/local.glb')).toMatchObject({
+      valid: false,
+      reason: 'unsupported-protocol',
+    })
+    expect(validateComponentAssetUrl('https://example.com/model.obj')).toMatchObject({
+      valid: false,
+      reason: 'unsupported-format',
+    })
+    expect(validateComponentAssetUrl('')).toEqual({ valid: true })
+  })
+
   it('keeps registry URLs under the Vite public model directory', () => {
     expect(Object.values(componentAssetRegistry).map((asset) => asset.url)).toEqual(expect.arrayContaining(['/models/cat-wall/wall-two-step-ladder.glb']))
     expect(Object.values(componentAssetRegistry).every((asset) => asset.url.startsWith('/models/cat-wall/') && asset.url.endsWith('.glb'))).toBe(true)
+    expect(componentAssetOptions).toHaveLength(Object.keys(componentAssetRegistry).length)
   })
 
   it('uses built-in asset dimensions for placement sizing', () => {

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "componentSpecRevision": 1,
+  "coordinateSystem": {
+    "handedness": "right",
+    "up": "+Y",
+    "front": "+Z",
+    "unit": "mm"
+  },
+  "nodes": [
+    {
+      "id": "main-panel-solid",
+      "op": "box",
+      "partId": "main-panel",
+      "sizeMm": { "x": 400, "y": 200, "z": 18 },
+      "transform": {
+        "positionMm": { "x": 0, "y": 0, "z": 0 },
+        "rotationDeg": { "x": 0, "y": 0, "z": 0 }
+      },
+      "materialRole": "wood-primary"
+    },
+    {
+      "id": "mount-hole-left-op",
+      "op": "mounting-hole",
+      "holeId": "mount-hole-left",
+      "targetNodeId": "main-panel-solid",
+      "diameterMm": 8,
+      "centerMm": { "x": -150, "y": 60, "z": 0 },
+      "axis": "+Z",
+      "through": true
+    },
+    {
+      "id": "mount-hole-right-op",
+      "op": "mounting-hole",
+      "holeId": "mount-hole-right",
+      "targetNodeId": "main-panel-solid",
+      "diameterMm": 8,
+      "centerMm": { "x": 150, "y": 60, "z": 0 },
+      "axis": "+Z",
+      "through": true
+    }
+  ],
+  "export": {
+    "primary": "glb",
+    "optional": ["blend"],
+    "originPolicy": "bounding-box-center",
+    "applyTransforms": true
+  }
+}

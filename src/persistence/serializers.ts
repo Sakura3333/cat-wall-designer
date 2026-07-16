@@ -1,4 +1,5 @@
 import type { Project } from '../domain/scene/types'
+import { normalizeForbiddenZone } from '../domain/scene/forbiddenZones'
 
 export const PROJECT_SCHEMA_VERSION = 1
 
@@ -39,6 +40,7 @@ export function normalizeProject(project: Partial<Project>): Project {
     sceneCamera: draft.sceneCamera ?? null,
     polygons: Array.isArray(draft.polygons) ? draft.polygons : [],
     planes: Array.isArray(draft.planes) ? draft.planes : [],
+    forbiddenZones: Array.isArray(draft.forbiddenZones) ? draft.forbiddenZones.map(normalizeForbiddenZone).filter((zone): zone is NonNullable<typeof zone> => Boolean(zone)) : [],
     components: Array.isArray(draft.components)
       ? draft.components.map((component) => {
           const fallbackKind = component.kind || 'unknown-component'
@@ -54,6 +56,7 @@ export function normalizeProject(project: Partial<Project>): Project {
     settings: {
       showFloor: draft.settings?.showFloor ?? true,
       sketchBackground: draft.settings?.sketchBackground ?? true,
+      showMeasurements: draft.settings?.showMeasurements ?? true,
     },
   }
 }
